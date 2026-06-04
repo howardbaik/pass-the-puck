@@ -14,8 +14,7 @@ website:
 format:
   html:
     theme:
-      - cosmo
-      - brand
+      - lux
     css: styles.css
 
 

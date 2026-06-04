@@ -1,0 +1,22 @@
+project:
+  type: website
+
+website:
+  description: "A player tracking data blog"
+  site-url: https://your-website-url.example.com # you must change this appropriately for RSS feeds to work properly
+  title: "Pass The Puck"
+  navbar:
+    right:
+      - about.qmd
+      - icon: github
+        href: https://github.com/
+
+format:
+  html:
+    theme:
+      - cosmo
+      - brand
+    css: styles.css
+
+
+

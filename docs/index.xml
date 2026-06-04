@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>Pass The Puck</title>
+<link>https://your-website-url.example.com/</link>
+<atom:link href="https://your-website-url.example.com/index.xml" rel="self" type="application/rss+xml"/>
+<description>A player tracking blog built with Quarto</description>
+<generator>quarto-1.8.24</generator>
+<lastBuildDate>Thu, 04 Jun 2026 04:00:00 GMT</lastBuildDate>
+<item>
+  <title>Under Construction</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://your-website-url.example.com/posts/placeholder/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>Under Construction</p>
+
+
+
+ ]]></description>
+  <guid>https://your-website-url.example.com/posts/placeholder/</guid>
+  <pubDate>Thu, 04 Jun 2026 04:00:00 GMT</pubDate>
+</item>
+</channel>
+</rss>

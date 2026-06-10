@@ -1,0 +1,8 @@
+---
+title: "Feature Based Expected Goals (xG) Model"
+format: html
+engine: none
+author: "Howard Baik"
+date: "2026-06-10"
+---
+

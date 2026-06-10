@@ -10,24 +10,23 @@
 <atom:link href="https://your-website-url.example.com/index.xml" rel="self" type="application/rss+xml"/>
 <description>A player tracking blog built with Quarto</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Thu, 04 Jun 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Wed, 10 Jun 2026 04:00:00 GMT</lastBuildDate>
 <item>
-  <title>Under Construction</title>
+  <title>Feature Based Expected Goals (xG) Model</title>
   <dc:creator>Howard Baik</dc:creator>
-  <link>https://your-website-url.example.com/posts/placeholder/</link>
+  <link>https://your-website-url.example.com/posts/feature-based-xg/</link>
   <description><![CDATA[ 
 
 
 
 
 
-<p>Big Data Cup 2026</p>
 
 
 
  ]]></description>
-  <guid>https://your-website-url.example.com/posts/placeholder/</guid>
-  <pubDate>Thu, 04 Jun 2026 04:00:00 GMT</pubDate>
+  <guid>https://your-website-url.example.com/posts/feature-based-xg/</guid>
+  <pubDate>Wed, 10 Jun 2026 04:00:00 GMT</pubDate>
 </item>
 </channel>
 </rss>

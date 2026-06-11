@@ -13,6 +13,12 @@ date: "2026-06-10"
 
 TODO: Introduce paper/blogpost.
 
+Rink Coordinates:
+
+![](./rink_coords.png)
+
+So (shot_frame - Frame) / FPS is "how long ago, in seconds, did the puck last cross the center line before this shot was taken." It's the same frames→seconds conversion used elsewhere in the notebook (e.g. the dframe / FPS term in the speed formula); 
+
 Mention using Claude Opus 4.8 for coding.
 
 Import Data
@@ -381,10 +387,308 @@ shot_pressure = shots.join(pressure, on="shot_id", how="left").select(
 ```
 
 
-
-
-
 ### Pre-Shot Movement
+
+Rink Coordinates:
+
+![](./rink_coords.png)
+
+
+Pre-shot movement features, focused on lateral puck movement (east-west):
+
+1. time_since_meridian  -- seconds since the puck last crossed the meridian
+2. meridian_cross_dist  -- where it crossed, as distance to the goal line
+3. avg_puck_speed       -- average puck speed in the 1 s before the shot
+
+The "meridian" is the Y = 0 line running net-to-net down the center of the ice; the
+puck crosses it when its Y coordinate changes sign (lateral / east-west movement, 
+which forces the goalie across and raises shot danger). Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.
+
+```{python}
+# The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we
+# only drop physically impossible jumps (tracking glitches) above ~110 mph.
+MAX_PUCK_SPEED_MPH = 110.0
+MAX_PUCK_SPEED_FPS = MAX_PUCK_SPEED_MPH / FT_PER_S_TO_MPH
+
+puck = (
+    tracking
+    .filter(pl.col("Player or Puck") == "Puck")
+    .filter(pl.col("Rink Location X (Feet)").is_not_null())
+    .with_columns(
+        pl.col("Image Id").str.split("_").list.last().cast(pl.Int64).alias("Frame")
+    )
+    .sort(["Game", "Period", "Frame"])
+    .with_columns(
+        (pl.col("Rink Location X (Feet)").shift(-SMOOTH_K) - pl.col("Rink Location X (Feet)").shift(SMOOTH_K)).over(["Game", "Period"]).alias("dx"),
+        (pl.col("Rink Location Y (Feet)").shift(-SMOOTH_K) - pl.col("Rink Location Y (Feet)").shift(SMOOTH_K)).over(["Game", "Period"]).alias("dy"),
+        (pl.col("Frame").shift(-SMOOTH_K) - pl.col("Frame").shift(SMOOTH_K)).over(["Game", "Period"]).alias("dframe"),
+    )
+    .with_columns(
+        ((pl.col("dx") ** 2 + pl.col("dy") ** 2).sqrt() / (pl.col("dframe") / FPS)).alias("puck_speed_fps")
+    )
+    .with_columns(
+        pl.when(pl.col("puck_speed_fps") <= MAX_PUCK_SPEED_FPS).then(pl.col("puck_speed_fps")).otherwise(None).alias("puck_speed_fps")
+    )
+    .select(["Game", "Period", "Frame", "Rink Location X (Feet)", "Rink Location Y (Feet)", "puck_speed_fps"])
+    .rename({"Rink Location X (Feet)": "puck_x", "Rink Location Y (Feet)": "puck_y"})
+)
+
+# Per-shot orientation: the shot location in tracking coords (negated when the release
+# match used the flip) tells us which goal line the team attacks (+89 if X > 0).
+shot_orient = (
+    shots.join(release.select(["shot_id", "Frame", "used_flip"]), on="shot_id", how="left")
+    .with_columns(
+        pl.when(pl.col("used_flip")).then(-pl.col("X_Coordinate")).otherwise(pl.col("X_Coordinate")).alias("Shot_X_track")
+    )
+    .with_columns((pl.col("Shot_X_track") > 0).alias("attack_right"))
+    .select(["shot_id", "Game", "Period", "Frame", "attack_right"])
+    .rename({"Frame": "shot_frame"})
+)
+
+# Puck samples in the same period within 5 s (150 frames) before each shot, with
+# coordinates normalized to attack-right. (The meridian sign-change is invariant to the
+# flip; normalizing X only matters for the goal-line distance.)
+window = (
+    shot_orient.join(puck, on=["Game", "Period"], how="left")
+    .filter((pl.col("shot_frame") - pl.col("Frame")).is_between(0, 5 * FPS))
+    .with_columns(
+        pl.when(pl.col("attack_right")).then(pl.col("puck_x")).otherwise(-pl.col("puck_x")).alias("px"),
+        pl.when(pl.col("attack_right")).then(pl.col("puck_y")).otherwise(-pl.col("puck_y")).alias("py"),
+    )
+    .sort(["shot_id", "Frame"])
+)
+
+# Feature 3: average puck speed over the 1 s (30 frames) before the shot.
+avg_speed = (
+    window.filter((pl.col("shot_frame") - pl.col("Frame")).is_between(0, 1 * FPS))
+    .group_by("shot_id")
+    .agg(pl.col("puck_speed_fps").mean().alias("avg_puck_speed_fps"))
+    .with_columns((pl.col("avg_puck_speed_fps") * FT_PER_S_TO_MPH).alias("avg_puck_speed_mph"))
+)
+
+# Features 1 & 2: the most recent meridian crossing within the 5 s window. A crossing is
+# a sign change in py between consecutive frames; we linearly interpolate the X where
+# py = 0, then keep the latest crossing (largest Frame) before the shot.
+crossings = (
+    window.with_columns(
+        pl.col("px").shift(1).over("shot_id").alias("px_prev"),
+        pl.col("py").shift(1).over("shot_id").alias("py_prev"),
+    )
+    .filter(pl.col("py_prev").is_not_null() & (pl.col("py_prev") * pl.col("py") < 0))
+    .with_columns(
+        (pl.col("px_prev") + (pl.col("px") - pl.col("px_prev")) * (0 - pl.col("py_prev")) / (pl.col("py") - pl.col("py_prev"))).alias("x_cross")
+    )
+    .sort(["shot_id", "Frame"])
+    .group_by("shot_id", maintain_order=True)
+    .last()
+    .with_columns(
+        ((pl.col("shot_frame") - pl.col("Frame")) / FPS).alias("time_since_meridian"),
+        (89 - pl.col("x_cross")).alias("meridian_cross_dist"),  # negative if crossed behind the net
+    )
+    .select(["shot_id", "time_since_meridian", "meridian_cross_dist"])
+)
+
+# Attach to the shots table; nulls mark shots with no meridian crossing in the prior 5 s.
+pre_shot_movement = (
+    shots.join(crossings, on="shot_id", how="left")
+    .join(avg_speed, on="shot_id", how="left")
+    .sort(["Period", "Clock_Seconds"], descending=[False, True])
+    .select(
+        "Period", "Clock", "Team", "Player_Id", "Event", "Detail_1",
+        "time_since_meridian", "meridian_cross_dist", "avg_puck_speed_fps", "avg_puck_speed_mph",
+    )
+)
+```
+
+Feature 3:
+For every shot, join in all puck tracking samples from the same period within 5 seconds (150 frames) before the shot. Average puck speed over the 1 second (30 frames) before the shot. Captures how fast the puck was moving into the shot.
+
+Features 1 and 2:
+Finds the most recent meridian crossing within the 5 s window. A crossing is a moment when the puck crosses the center line of the rink. We'll identify this by checking when the puck's y-coordinate changes sign (from positive to negative or vice versa) within the 5-second window before the shot.
+
+`time_since_meridian = (shot_frame − Frame) / FPS` gives us the time in seconds since the puck last crossed the meridian before the shot was taken. 
+`meridian_cross_dist = 89 − x_cross` is calculated as the distance from where the puck crossed the meridian to the goal line (89 feet), with negative values indicating crossings behind the net.
+
+### Traffic
+
+We model "traffic" by projecting each skater onto the goal line via a straight line from the shooter, then summing the Gaussian-weighted coverage of the 6-ft goal face (y ∈ [−3, 3]).
+
+```{python}
+import numpy as np
+
+SIGMA = 1.5  # Gaussian standard deviation (feet)
+GOAL_HALF = 3.0  # half-width of goal face (feet)
+
+
+def _normal_cdf_batched(x: np.ndarray) -> np.ndarray:
+    """Vectorised normal CDF using math.erf identity: Φ(z) = 0.5*(1+erf(z/√2))."""
+    return 0.5 * (1.0 + np.vectorize(math.erf)(x / math.sqrt(2)))
+
+
+# --- Per-shot info in tracking coordinates (reuses release match) ---
+shot_info = (
+    shots.join(release.select(["shot_id", "Frame", "used_flip"]), on="shot_id", how="left")
+    .with_columns(
+        # Shot location in tracking coords
+        pl.when(pl.col("used_flip")).then(-pl.col("X_Coordinate")).otherwise(pl.col("X_Coordinate")).alias("Shot_X"),
+        pl.when(pl.col("used_flip")).then(-pl.col("Y_Coordinate")).otherwise(pl.col("Y_Coordinate")).alias("Shot_Y"),
+    )
+    .with_columns(
+        # Goal line: +89 if attacking right, −89 if attacking left
+        pl.when(pl.col("Shot_X") > 0).then(pl.lit(89.0)).otherwise(pl.lit(-89.0)).alias("goal_x"),
+    )
+    .select(["shot_id", "Game", "Period", "Frame", "Track_Team", "Player_Id", "Shot_X", "Shot_Y", "goal_x"])
+)
+
+# --- All non-goalie skaters at each shot's release frame ---
+skaters_at_frame = (
+    players
+    .filter(pl.col("Jersey") != "Go")
+    .select(["Game", "Period", "Team", "Jersey", "Frame",
+             "Rink Location X (Feet)", "Rink Location Y (Feet)"])
+    .rename({"Rink Location X (Feet)": "sk_x", "Rink Location Y (Feet)": "sk_y"})
+)
+
+# Join each shot with every skater present at the release frame, then drop the shooter.
+occlusion_pairs = (
+    shot_info.join(
+        skaters_at_frame,
+        left_on=["Game", "Period", "Frame"],
+        right_on=["Game", "Period", "Frame"],
+        how="left",
+    )
+    # Exclude the shooter (same team in tracking namespace + same jersey)
+    .filter(
+        ~((pl.col("Track_Team") == pl.col("Team")) & (pl.col("Player_Id") == pl.col("Jersey")))
+    )
+    .filter(pl.col("sk_x").is_not_null() & pl.col("sk_y").is_not_null())
+    # Compute y-intercept on the goal line
+    .with_columns(
+        (pl.col("Shot_Y")
+         + (pl.col("sk_y") - pl.col("Shot_Y"))
+           * (pl.col("goal_x") - pl.col("Shot_X"))
+           / (pl.col("sk_x") - pl.col("Shot_X"))
+        ).alias("y_goal")
+    )
+    # Drop degenerate cases: skater at same x as shooter, or intercept is undefined
+    .filter(pl.col("y_goal").is_not_null() & pl.col("y_goal").is_finite())
+)
+
+# Compute Gaussian contribution per skater via map_batches
+occlusion_pairs = occlusion_pairs.with_columns(
+    pl.struct(["y_goal"]).map_batches(
+        lambda s: pl.Series(
+            _normal_cdf_batched((GOAL_HALF - s.struct.field("y_goal").to_numpy()) / SIGMA)
+            - _normal_cdf_batched((-GOAL_HALF - s.struct.field("y_goal").to_numpy()) / SIGMA)
+        ),
+        return_dtype=pl.Float64,
+    ).alias("occlusion_contribution")
+)
+
+# Sum per shot
+total_occlusion = (
+    occlusion_pairs
+    .group_by("shot_id", maintain_order=True)
+    .agg(pl.col("occlusion_contribution").sum().alias("total_occlusion"))
+)
+
+shot_occlusion = (
+    shots.join(total_occlusion, on="shot_id", how="left")
+    .select(
+        "Period", "Clock", "Team", "Player_Id", "Event", "Detail_1",
+        "X_Coordinate", "Y_Coordinate", "total_occlusion",
+    )
+)
+```
+
+
+
+### Goaltender Positioning
+
+Angle Discrepancy:
+$$\zeta = \arccos!\left(\frac{s \cdot g}{|s|,|g|}\right)\times\frac{180}{\pi}$$
+
+
+
+
+```{python}
+# Per shot: defending team, release frame, shot location in tracking coords, goal center.
+shot_goalie_ctx = (
+    shots.join(release.select(["shot_id", "Frame", "used_flip"]), on="shot_id", how="left")
+    .with_columns(
+        pl.when(pl.col("Track_Team") == "Home").then(pl.lit("Away"))
+          .otherwise(pl.lit("Home")).alias("Def_Team"),
+        pl.when(pl.col("used_flip")).then(-pl.col("X_Coordinate"))
+          .otherwise(pl.col("X_Coordinate")).alias("Shot_X"),
+        pl.when(pl.col("used_flip")).then(-pl.col("Y_Coordinate"))
+          .otherwise(pl.col("Y_Coordinate")).alias("Shot_Y"),
+    )
+    .with_columns(
+        # Goal line: +89 if attacking right, −89 if attacking left.
+        pl.when(pl.col("Shot_X") > 0).then(pl.lit(89.0)).otherwise(pl.lit(-89.0)).alias("goal_x"),
+    )
+    .select(["shot_id", "Game", "Period", "Def_Team", "Frame", "Shot_X", "Shot_Y", "goal_x"])
+)
+
+# Defending goaltender's tracked position at each shot's release frame.
+goalies = (
+    players
+    .filter(pl.col("Jersey") == "Go")
+    .select(["Game", "Period", "Team", "Frame",
+             "Rink Location X (Feet)", "Rink Location Y (Feet)"])
+    .rename({"Rink Location X (Feet)": "goalie_x", "Rink Location Y (Feet)": "goalie_y"})
+)
+
+goaltender_positioning = (
+    shot_goalie_ctx
+    .join(
+        goalies,
+        left_on=["Game", "Period", "Def_Team", "Frame"],
+        right_on=["Game", "Period", "Team", "Frame"],
+        how="left",
+    )
+    # One goalie per team-frame is expected; guard against duplicate tracks.
+    .group_by("shot_id", maintain_order=True)
+    .first()
+    .with_columns(
+        # Vectors from the goal center to the shooter and to the goalie.
+        (pl.col("Shot_X") - pl.col("goal_x")).alias("s_x"),
+        pl.col("Shot_Y").alias("s_y"),
+        (pl.col("goalie_x") - pl.col("goal_x")).alias("g_x"),
+        pl.col("goalie_y").alias("g_y"),
+    )
+    .with_columns(
+        (pl.col("s_x") ** 2 + pl.col("s_y") ** 2).sqrt().alias("s_mag"),
+        (pl.col("g_x") ** 2 + pl.col("g_y") ** 2).sqrt().alias("g_mag"),
+        (pl.col("s_x") * pl.col("g_x") + pl.col("s_y") * pl.col("g_y")).alias("dot"),
+    )
+    .with_columns(
+        # d_g: distance from the goaltender to the goal center.
+        pl.col("g_mag").alias("goaltender_depth"),
+        # ζ (degrees): undefined when shooter or goalie sits exactly at the goal center.
+        pl.when((pl.col("s_mag") > 0) & (pl.col("g_mag") > 0))
+          .then(
+              (pl.col("dot") / (pl.col("s_mag") * pl.col("g_mag")))
+              .clip(-1.0, 1.0).arccos() * (180 / math.pi)
+          )
+          .otherwise(None)
+          .alias("angle_discrepancy"),
+    )
+    .select(["shot_id", "angle_discrepancy", "goaltender_depth"])
+)
+
+# Attach to the shots table for use as expected-goals model features.
+shot_goaltender = (
+    shots.join(goaltender_positioning, on="shot_id", how="left")
+    .sort(["Period", "Clock_Seconds"], descending=[False, True])
+    .select(
+        "Period", "Clock", "Team", "Player_Id", "Event", "Detail_1",
+        "angle_discrepancy", "goaltender_depth",
+    )
+)
+```
+
+
 
 
 

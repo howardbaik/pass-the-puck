@@ -12,7 +12,7 @@
 <generator>quarto-1.8.24</generator>
 <lastBuildDate>Wed, 10 Jun 2026 04:00:00 GMT</lastBuildDate>
 <item>
-  <title>Feature Based Expected Goals (xG) Model</title>
+  <title>Feature-Based Expected Goals (xG) Model</title>
   <dc:creator>Howard Baik</dc:creator>
   <link>https://your-website-url.example.com/posts/feature-based-xg/</link>
   <description><![CDATA[ 
@@ -21,8 +21,511 @@
 
 
 
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>TODO: Introduce paper/blogpost</p>
+<p>Import Data</p>
+<div id="9d78bcb8" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> polars <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> pl</span>
+<span id="cb1-2"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> great_tables <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> GT</span>
+<span id="cb1-3"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> math</span>
+<span id="cb1-4"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> json</span>
+<span id="cb1-5"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> urllib.request, io</span>
+<span id="cb1-6"></span>
+<span id="cb1-7"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Convert clock strings ("MM:SS" / "M:SS") to total seconds.</span></span>
+<span id="cb1-8"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># events.Clock uses zero-padded minutes ("09:30"); tracking "Game Clock" is unpadded ("9:30").</span></span>
+<span id="cb1-9"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Casting both to integer seconds makes them directly comparable for joins.</span></span>
+<span id="cb1-10"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> clock_to_seconds(col):</span>
+<span id="cb1-11">    parts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pl.col(col).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">str</span>.split(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">":"</span>)</span>
+<span id="cb1-12">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> (</span>
+<span id="cb1-13">        parts.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">list</span>.get(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>).cast(pl.Int64) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">60</span></span>
+<span id="cb1-14">        <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> parts.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">list</span>.get(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>).cast(pl.Int64)</span>
+<span id="cb1-15">    )</span>
+<span id="cb1-16"></span>
+<span id="cb1-17"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Add the seconds column and slot it right after its source column.</span></span>
+<span id="cb1-18"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> add_seconds_after(df, src, new):</span>
+<span id="cb1-19">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df.with_columns(clock_to_seconds(src).alias(new))</span>
+<span id="cb1-20">    cols <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [c <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> c <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> df.columns <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> c <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> new]</span>
+<span id="cb1-21">    cols.insert(df.get_column_index(src) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, new)</span>
+<span id="cb1-22">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> df.select(cols)</span>
+<span id="cb1-23"></span>
+<span id="cb1-24"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Every game is read directly from the Big Data Cup 2026 release (no local download).</span></span>
+<span id="cb1-25"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Each row is tagged with a "Game" id (the filename stem, e.g. "2025-10-11.Team.A.@.Team.D"),</span></span>
+<span id="cb1-26"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># identical for a game's Events and Tracking files. That key is required downstream: the</span></span>
+<span id="cb1-27"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># shots&lt;-&gt;tracking joins match on Period + Frame, but Frame is only a per-game counter, so</span></span>
+<span id="cb1-28"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># without "Game" they would cross-match rows between different games.</span></span>
+<span id="cb1-29">_RELEASE_API <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"https://api.github.com/repos/bigdatacup/Big-Data-Cup-2026/releases/tags/Data"</span></span>
+<span id="cb1-30">_assets <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {a[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"name"</span>]: a[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"browser_download_url"</span>]</span>
+<span id="cb1-31">           <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> a <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> json.load(urllib.request.urlopen(_RELEASE_API))[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets"</span>]}</span>
+<span id="cb1-32"></span>
+<span id="cb1-33"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> _read_url(url, <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">**</span>kwargs):</span>
+<span id="cb1-34">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> pl.read_csv(io.BytesIO(urllib.request.urlopen(url).read()), <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">**</span>kwargs)</span>
+<span id="cb1-35"></span>
+<span id="cb1-36"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Events: one file per game.</span></span>
+<span id="cb1-37">event_frames <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb1-38"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> name, url <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> _assets.items():</span>
+<span id="cb1-39">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".Events.csv"</span>):</span>
+<span id="cb1-40">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">continue</span></span>
+<span id="cb1-41">    game <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> name[: <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".Events.csv"</span>)]</span>
+<span id="cb1-42">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> _read_url(url, schema_overrides<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Player_Id"</span>: pl.String, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Player_Id_2"</span>: pl.String})</span>
+<span id="cb1-43">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> add_seconds_after(df, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Clock"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Clock_Seconds"</span>)</span>
+<span id="cb1-44">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df.with_columns(pl.lit(game).alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Game"</span>))</span>
+<span id="cb1-45">    event_frames.append(df)</span>
+<span id="cb1-46">events <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pl.concat(event_frames)</span>
+<span id="cb1-47"></span>
+<span id="cb1-48"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Tracking: P1/P2/P3 (+ POT overtime). ".Tracking_P" excludes Shifts and camera_orientations.</span></span>
+<span id="cb1-49">track_frames <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb1-50"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> name, url <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> _assets.items():</span>
+<span id="cb1-51">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".Tracking_P"</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> name:</span>
+<span id="cb1-52">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">continue</span></span>
+<span id="cb1-53">    game <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> name.split(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".Tracking_"</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb1-54">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> _read_url(url, schema_overrides<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Rink Location Z (Feet)"</span>: pl.Float64, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Period"</span>: pl.String}).drop(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Player Id"</span>)</span>
+<span id="cb1-55">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Overtime tracking labels Period as "OT"; events use 4 for OT. Normalize to 4 (Int64)</span></span>
+<span id="cb1-56">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># so the dtype is consistent across files and OT shots can join their tracking frames.</span></span>
+<span id="cb1-57">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df.with_columns(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Period"</span>).replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"OT"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"4"</span>).cast(pl.Int64))</span>
+<span id="cb1-58">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> add_seconds_after(df, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Game Clock"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Game_Clock_Seconds"</span>)</span>
+<span id="cb1-59">    df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df.with_columns(pl.lit(game).alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Game"</span>))</span>
+<span id="cb1-60">    track_frames.append(df)</span>
+<span id="cb1-61"></span>
+<span id="cb1-62"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># One table of every tracked player-frame across all games and periods.</span></span>
+<span id="cb1-63">tracking <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pl.concat(track_frames)</span></code></pre></div></div>
+</details>
+</div>
+<section id="distribution-of-shot-types" class="level3">
+<h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
+<p>We first look at the distribution of shot types in the dataset. From the events dataset, we filter for Shot and Goal events and count the number of unique occurences of the Detail 1 column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
+<div id="3724a2d2" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">shot_types <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (</span>
+<span id="cb2-2">    events.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Event"</span>).is_in([<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Goal"</span>]))</span>
+<span id="cb2-3">    .group_by(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Detail_1"</span>)</span>
+<span id="cb2-4">    .agg(pl.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>().alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"count"</span>))</span>
+<span id="cb2-5">    .with_columns((pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"count"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"count"</span>).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sum</span>()).alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"pct"</span>))</span>
+<span id="cb2-6">    .sort(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"count"</span>, descending<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb2-7">)</span>
+<span id="cb2-8"></span>
+<span id="cb2-9"></span>
+<span id="cb2-10"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> matplotlib.pyplot <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> plt</span>
+<span id="cb2-11"></span>
+<span id="cb2-12">fig, ax <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.subplots(figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">10</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">6</span>))</span>
+<span id="cb2-13"></span>
+<span id="cb2-14"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Create bar chart with percentages</span></span>
+<span id="cb2-15">ax.bar(shot_types[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Detail_1"</span>], shot_types[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"pct"</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"#1f77b4"</span>, edgecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"black"</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.7</span>)</span>
+<span id="cb2-16"></span>
+<span id="cb2-17"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Customize the plot</span></span>
+<span id="cb2-18">ax.set_xlabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot Type"</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">12</span>, fontweight<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"bold"</span>)</span>
+<span id="cb2-19">ax.set_ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Percentage (%)"</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">12</span>, fontweight<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"bold"</span>)</span>
+<span id="cb2-20">ax.set_title(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Distribution of Shot Types (Percentage)"</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">14</span>, fontweight<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"bold"</span>)</span>
+<span id="cb2-21"></span>
+<span id="cb2-22"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Rotate x-axis labels for better readability</span></span>
+<span id="cb2-23">plt.xticks(rotation<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">45</span>, ha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"right"</span>)</span>
+<span id="cb2-24"></span>
+<span id="cb2-25"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Add percentage labels on top of bars</span></span>
+<span id="cb2-26"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, v <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(shot_types[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"pct"</span>]):</span>
+<span id="cb2-27">    ax.text(i, v <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>v<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.1f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">%"</span>, ha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"center"</span>, va<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"bottom"</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span>)</span>
+<span id="cb2-28"></span>
+<span id="cb2-29">plt.tight_layout()</span>
+<span id="cb2-30">plt.show()</span></code></pre></div></div>
+</details>
+</div>
+<p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_types_distribution.png" class="img-fluid"></p>
+</section>
+</section>
+<section id="feature-engineering" class="level2">
+<h2 class="anchored" data-anchor-id="feature-engineering">Feature Engineering</h2>
+<section id="shot-location" class="level3">
+<h3 class="anchored" data-anchor-id="shot-location">Shot Location</h3>
+</section>
+<section id="shot-type" class="level3">
+<h3 class="anchored" data-anchor-id="shot-type">Shot Type</h3>
+</section>
+<section id="player-position" class="level3">
+<h3 class="anchored" data-anchor-id="player-position">Player Position</h3>
 
 
+</section>
+</section>
 
  ]]></description>
   <guid>https://your-website-url.example.com/posts/feature-based-xg/</guid>

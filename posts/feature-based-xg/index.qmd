@@ -13,6 +13,8 @@ date: "2026-06-10"
 
 TODO: Introduce paper/blogpost.
 
+Mention using Claude Opus 4.8 for coding.
+
 Import Data
 ```{python}
 import polars as pl
@@ -313,8 +315,77 @@ shot_speeds = (
 
 ### Pressure
 
+Pressure is defined as the distance from the shot location to the closest and second-closest defending skater. According to the paper, a continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest
+defender captures pressure from multiple defenders.
+
+We join the shots dataset to every defending skater and measure the distance between the defender and the shot. We filter for the closest and second-closest defender to find the distance from the shot location to the closest and second closest defenders.
+
+```{python}
+# Defending skaters only: opposite tracking team, real jersey numbers, no goalies.
+defenders = (
+    players
+    .filter(pl.col("Jersey") != "Go")
+    .select([
+        "Game", "Period", "Team", "Frame",
+        "Rink Location X (Feet)", "Rink Location Y (Feet)",
+    ])
+)
+
+# Per shot: the defending team, the release frame, and the shot location in tracking
+# coordinates (negated when the release match used the flip).
+shot_frames = (
+    shots
+    .join(release.select(["shot_id", "Frame", "used_flip"]), on="shot_id", how="left")
+    .with_columns(
+        pl.when(pl.col("Track_Team") == "Home").then(pl.lit("Away"))
+          .otherwise(pl.lit("Home")).alias("Def_Team"),
+        pl.when(pl.col("used_flip")).then(-pl.col("X_Coordinate"))
+          .otherwise(pl.col("X_Coordinate")).alias("Shot_X"),
+        pl.when(pl.col("used_flip")).then(-pl.col("Y_Coordinate"))
+          .otherwise(pl.col("Y_Coordinate")).alias("Shot_Y"),
+    )
+    .select(["shot_id", "Game", "Period", "Def_Team", "Frame", "Shot_X", "Shot_Y"])
+)
+
+# Join each shot to every defending skater in its release frame; measure distance.
+pressure = (
+    shot_frames
+    .join(
+        defenders,
+        left_on=["Game", "Period", "Def_Team", "Frame"],
+        right_on=["Game", "Period", "Team", "Frame"],
+        how="left",
+    )
+    .with_columns(
+        ((pl.col("Rink Location X (Feet)") - pl.col("Shot_X")) ** 2
+         + (pl.col("Rink Location Y (Feet)") - pl.col("Shot_Y")) ** 2)
+        .sqrt().alias("def_dist")
+    )
+    .group_by("shot_id", maintain_order=True)
+    .agg(
+        pl.col("def_dist").sort(nulls_last=True).alias("def_dists"),
+        pl.col("def_dist").is_not_null().sum().alias("n_defenders"),
+    )
+    .with_columns(
+        pl.col("def_dists").list.get(0, null_on_oob=True).alias("closest_def_dist"),
+        pl.col("def_dists").list.get(1, null_on_oob=True).alias("second_closest_def_dist"),
+    )
+    .drop("def_dists")
+)
+
+# Attach to the shots table for use as expected-goals model features.
+shot_pressure = shots.join(pressure, on="shot_id", how="left").select(
+    "Period", "Clock", "Team", "Player_Id", "Event", "Detail_1",
+    "n_defenders", "closest_def_dist", "second_closest_def_dist",
+)
+```
+
+
+
 
 
 ### Pre-Shot Movement
+
+
 
 

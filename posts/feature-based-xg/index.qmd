@@ -176,6 +176,7 @@ TODO: Show rink with shot locations plotted.
 
 ## Feature Engineering
 
+TODO: Introduce Feature Engineering of `events` and `tracking` data to extract features for the Features-Based xG Model in the paper.
 
 
 

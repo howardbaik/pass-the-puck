@@ -199,11 +199,13 @@ Again, the shot outcome distribution in our dataset is very similar to the thesi
 
 ### Distribution of Shot Location
 
-We look at the distribution of shot locations in the events dataset. We filter for `Shot` and `Goal` events and visualize the distribution of the `X_Coordinate` and `Y_Coordinate` columns on an half-sized ice rink.
+We look at the distribution of shot locations in the events dataset. We filter for `Shot` and `Goal` events and visualize the distribution of the `X_Coordinate` and `Y_Coordinate` columns on a half-sized ice rink, along with the shot angle.
 
+<br>
 
+![](goal_locations_ice_rink.png){width=60% fig-align="center"}
 
-
+There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, evidentally a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, which is a low-danger area of the rink. 
 
 
 ## Feature Engineering

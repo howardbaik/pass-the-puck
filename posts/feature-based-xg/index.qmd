@@ -4,22 +4,33 @@ format:
   html:
     code-fold: true
     code-summary: "Show code"
+    include-in-header:
+      text: |
+        <style>
+        .quarto-title .description { display: none; }
+        </style>
+link-external-newwindow: true
 eval: false
 author: "Howard Baik"
 date: "2026-06-17"
+image: "thumbnail.png"
+description: "This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault's PhD thesis."
 ---
 
 ## Introduction
 
-This post is a code-first implementation of the Feature-Based Expected Goals (xG) Model from Jonathan Arsenault's PhD thesis. The model is described in Section 2.4 of his thesis. The model uses tracking data in the development of an xG model that incorporates features such as shooter motion, pressure from defenders, pre-shot puck movement, and goaltender positioning. 
+This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of [Jonathan Arsenault](https://www.linkedin.com/in/jonathan-arsenault-a0b414114/)'s [PhD thesis](https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f). As the thesis puts it, "xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal." Here, those features come from event and tracking data and capture shooter motion, pressure from defenders, pre-shot puck movement, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot's probability of becoming a goal.
 
-We will be using data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-Data-Cup-2026), which contains Stathletes-tracked event data as well as player tracking data generated from broadcast video. All code is written using Claude Opus 4.8 and verified by the author.
+We will use data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-Data-Cup-2026), which spans 10 games and combines Stathletes-tracked event data with player tracking data generated from broadcast video.
+
+ All code is written using Claude Opus 4.8 and verified by the author.
 
 
-So (shot_frame - Frame) / FPS is "how long ago, in seconds, did the puck last cross the center line before this shot was taken." It's the same frames→seconds conversion used elsewhere in the notebook (e.g. the dframe / FPS term in the speed formula); 
+### Data Import
+
+We import the data from the Big Data Cup 2026 GitHub repository and tag each events and tracking data with a "Game" id. Then, we convert the clock strings ("MM:SS" / "M:SS") to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we concatenate all the tracking files into one dataset of every tracked player-frame across all games and periods.  
 
 
-Import Data
 ```{python}
 import polars as pl
 from great_tables import GT
@@ -86,10 +97,19 @@ for name, url in _assets.items():
 tracking = pl.concat(track_frames)
 ```
 
+![](events_data_table.png)
+
+![](tracking_data_table.png)
+
+
+
 
 ### Distribution of Shot Types
 
-We first look at the distribution of shot types in the dataset. From the events dataset, we filter for Shot and Goal events and count the number of unique occurences of the Detail 1 column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.
+We look at the distribution of shot types in the events dataset. We filter for `Shot` and `Goal` events and count the number of unique occurences of the `Detail 1` column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.
+
+![](./shot_types_distribution.png)
+
 ```{python}
 shot_types = (
     events.filter(pl.col("Event").is_in(["Shot", "Goal"]))
@@ -123,12 +143,13 @@ plt.tight_layout()
 plt.show()
 ```
 
-![](./shot_types_distribution.png)
+The shot type distribution in our dataset is very similar to the thesis's dataset. Table 2.1 from the thesis reveals that Wrist Shots (47.8%) and Snap Shots (25.5%) are the most common, followed by Slap Shots (15.6%) and Deflections (4.5%).
+
 
 
 ### Distribution of Shot Outcomes
 
-Then, we look at the shot outcomes in the events dataset. We filter for Shot and Goal events and count the number of unique occurences of the Detail 2 column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).
+We look at the shot outcomes in the events dataset. We filter for `Shot` and `Goal` events and count the number of unique occurences of the `Detail 2` column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).
 
 ```{python}
 descriptions = {
@@ -174,10 +195,15 @@ shot_outcomes = (
 
 ![](./shot_outcomes_table.png)
 
+Again, the shot outcome distribution in our dataset is very similar to the thesis's dataset. Table 2.2 shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.
 
-## Distribution of Shot Location
+### Distribution of Shot Location
 
-TODO: Show rink with shot locations plotted.
+We look at the distribution of shot locations in the events dataset. We filter for `Shot` and `Goal` events and visualize the distribution of the `X_Coordinate` and `Y_Coordinate` columns on an half-sized ice rink.
+
+
+
+
 
 
 ## Feature Engineering
@@ -695,4 +721,6 @@ shot_goaltender = (
 
 
 
+### Extra Stuff
 
+So (shot_frame - Frame) / FPS is "how long ago, in seconds, did the puck last cross the center line before this shot was taken." It's the same frames→seconds conversion used elsewhere in the notebook (e.g. the dframe / FPS term in the speed formula); 

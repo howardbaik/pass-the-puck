@@ -18,6 +18,7 @@ format:
     theme:
       - lux
     css: styles.css
+    link-external-newwindow: true
 
 
 

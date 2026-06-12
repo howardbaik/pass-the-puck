@@ -1,25 +1,23 @@
 ---
-title: "Feature-Based Expected Goals (xG) Model"
+title: "Feature-Based Expected Goals (xG)"
 format:
   html:
     code-fold: true
     code-summary: "Show code"
 eval: false
 author: "Howard Baik"
-date: "2026-06-10"
+date: "2026-06-17"
 ---
 
 ## Introduction
 
-TODO: Introduce paper/blogpost.
+This post is a code-first implementation of the Feature-Based Expected Goals (xG) Model from Jonathan Arsenault's PhD thesis. The model is described in Section 2.4 of his thesis. The model uses tracking data in the development of an xG model that incorporates features such as shooter motion, pressure from defenders, pre-shot puck movement, and goaltender positioning. 
 
-Rink Coordinates:
+We will be using data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-Data-Cup-2026), which contains Stathletes-tracked event data as well as player tracking data generated from broadcast video. All code is written using Claude Opus 4.8 and verified by the author.
 
-![](./rink_coords.png)
 
 So (shot_frame - Frame) / FPS is "how long ago, in seconds, did the puck last cross the center line before this shot was taken." It's the same frames→seconds conversion used elsewhere in the notebook (e.g. the dframe / FPS term in the speed formula); 
 
-Mention using Claude Opus 4.8 for coding.
 
 Import Data
 ```{python}
@@ -391,7 +389,7 @@ shot_pressure = shots.join(pressure, on="shot_id", how="left").select(
 
 Rink Coordinates:
 
-![](./rink_coords.png)
+![](./rink_coords.png){width=80% fig-align="center"}
 
 
 Pre-shot movement features, focused on lateral puck movement (east-west):
@@ -605,11 +603,16 @@ shot_occlusion = (
 
 ### Goaltender Positioning
 
+![](./goaltender-diagram.png){fig-align="center"}
+
+Figure shows goaltender angle $\zeta$ and depth $d_g$ relative to the goal center, defined as the point on the goal line equidistant from the posts. 
+
 Angle Discrepancy:
 $$\zeta = \arccos!\left(\frac{s \cdot g}{|s|,|g|}\right)\times\frac{180}{\pi}$$
 
+Angle between the line to the shooter and the line to the goaltender, in degrees. A well-positioned goalie should be close to 0° (in line with the shooter and goal center); a goalie caught out of position will have a larger angle.
 
-
+Goaltender Depth: Straight-line distance from the goaltender to the goal center, i.e. how far out of the crease the goalie has come.
 
 ```{python}
 # Per shot: defending team, release frame, shot location in tracking coords, goal center.

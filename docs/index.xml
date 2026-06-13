@@ -23,13 +23,13 @@
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p>This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of <a href="https://www.linkedin.com/in/jonathan-arsenault-a0b414114/">Jonathan Arsenault</a>’s <a href="https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f">PhD thesis</a>. As the thesis puts it, “xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal.” Here, those features come from event and tracking data and capture shooter motion, pressure from defenders, pre-shot puck movement, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot’s probability of becoming a goal.</p>
+<p>This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of <a href="https://www.linkedin.com/in/jonathan-arsenault-a0b414114/">Jonathan Arsenault</a>’s <a href="https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f">PhD thesis</a>. As the thesis puts it, “xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal.” Here, those features come from event and tracking data and capture shooter location, shooter motion, pressure from defenders, pre-shot puck movement, traffic in the shooting lane, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot’s probability of becoming a goal.</p>
 <p>We will use data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026">Big Data Cup 2026</a>, which spans 10 games and combines Stathletes-tracked event data with player tracking data generated from broadcast video.</p>
 <p>All code is written using Claude Opus 4.8 and verified by the author.</p>
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the Big Data Cup 2026 GitHub repository and tag each events and tracking data with a “Game” id. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we concatenate all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="86014ab9" class="cell" data-execution_count="1">
+<div id="08f206d2" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="im" style="color: #00769E;
@@ -330,7 +330,7 @@ font-style: inherit;">=</span> pl.concat(track_frames)</span></code></pre></div>
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_types_distribution.png" class="img-fluid"></p>
-<div id="aa5a8de8" class="cell" data-execution_count="2">
+<div id="d63dbffb" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">shot_types <span class="op" style="color: #5E5E5E;
@@ -522,7 +522,7 @@ font-style: inherit;">8</span>)</span>
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="876a9357" class="cell" data-execution_count="3">
+<div id="c1357128" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">descriptions <span class="op" style="color: #5E5E5E;
@@ -723,7 +723,7 @@ font-style: inherit;">"110px"</span>})</span>
 </details>
 </div>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_outcomes_table.png" class="img-fluid"></p>
-<p>Again, the shot outcome distribution in our dataset is very similar to the thesis’s dataset. Table 2.2 shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.</p>
+<p>Again, the shot outcome distribution in our dataset is very similar to the thesis’s dataset. Table 2.2 from the thesis shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.</p>
 </section>
 <section id="distribution-of-shot-location" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-location">Distribution of Shot Location</h3>
@@ -734,61 +734,218 @@ font-style: inherit;">"110px"</span>})</span>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/goal_locations_ice_rink.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:60.0%"></p>
 </figure>
 </div>
-<p>There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, evidentally a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, which is a low-danger area of the rink.</p>
+<p>There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, a low-danger area of the rink.</p>
 </section>
 </section>
 <section id="feature-engineering" class="level2">
 <h2 class="anchored" data-anchor-id="feature-engineering">Feature Engineering</h2>
-<p>TODO: Introduce Feature Engineering of <code>events</code> and <code>tracking</code> data to extract features for the Features-Based xG Model in the paper.</p>
+<p>We extract features from the <code>events</code> and <code>tracking</code> data to create features for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.</p>
 <section id="shot-location" class="level3">
 <h3 class="anchored" data-anchor-id="shot-location">Shot Location</h3>
-<p>TODO:</p>
+<p>We get the angle of the shot (<code>Shot_Angle</code>), the Meridian distance, which is the distance between the shot location and the meridian (royal road) <code>d_m</code>, and the shot distance (distance between the shot location and the goal) (<code>d_trig</code> and <code>d_euclidean</code>).</p>
+<div id="385eb30b" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">(</span>
+<span id="cb4-2">    events</span>
+<span id="cb4-3">    .<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Event"</span>).is_in([<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Goal"</span>]))</span>
+<span id="cb4-4">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Normalize to right side</span></span>
+<span id="cb4-5">    .with_columns(</span>
+<span id="cb4-6">        pl.when(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>)</span>
+<span id="cb4-7">        .then(<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>))</span>
+<span id="cb4-8">        .otherwise(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>))</span>
+<span id="cb4-9">        .alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>),</span>
+<span id="cb4-10"></span>
+<span id="cb4-11">        pl.when(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>)</span>
+<span id="cb4-12">        .then(<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>))</span>
+<span id="cb4-13">        .otherwise(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>))</span>
+<span id="cb4-14">        .alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>),</span>
+<span id="cb4-15">    )</span>
+<span id="cb4-16">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Shot angle (degrees) and meridian distance</span></span>
+<span id="cb4-17">    .with_columns(</span>
+<span id="cb4-18">        (</span>
+<span id="cb4-19">            pl.arctan2(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>), <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">89</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>))</span>
+<span id="cb4-20">            .<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">abs</span>()</span>
+<span id="cb4-21">            <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">180</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> math.pi)</span>
+<span id="cb4-22">        ).alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot_Angle"</span>),</span>
+<span id="cb4-23">        pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">abs</span>().alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_m"</span>),</span>
+<span id="cb4-24">    )</span>
+<span id="cb4-25">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Distance via trigonometry: d = d_m / sin(θ), fallback to (89 - x) when Y = 0</span></span>
+<span id="cb4-26">    .with_columns(</span>
+<span id="cb4-27">        pl.when(pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_m"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>)</span>
+<span id="cb4-28">        .then(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">89</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>))</span>
+<span id="cb4-29">        .otherwise(</span>
+<span id="cb4-30">            pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_m"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> (pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot_Angle"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> math.pi <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">180</span>).sin()</span>
+<span id="cb4-31">        )</span>
+<span id="cb4-32">        .alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_trig"</span>),</span>
+<span id="cb4-33">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Euclidean distance as sanity check</span></span>
+<span id="cb4-34">        ((<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">89</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"X_Coordinate"</span>)).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">pow</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> pl.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Y_Coordinate"</span>).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">pow</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>))</span>
+<span id="cb4-35">        .sqrt()</span>
+<span id="cb4-36">        .alias(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_euclidean"</span>),</span>
+<span id="cb4-37">    )</span>
+<span id="cb4-38">)</span></code></pre></div></div>
+</details>
+</div>
 </section>
 <section id="shooter-motion" class="level3">
 <h3 class="anchored" data-anchor-id="shooter-motion">Shooter Motion</h3>
 <p>To get the shooter’s speed at the instant of their shot, we use the <code>tracking</code> dataset. First, we filter for the rows where the <code>tracking</code> data corresponds to a player (as opposed to the puck). Then, we use the <code>Image Id</code> column to extract the frame number. For example, an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> would correspond to frame number 065468. Then, we order each player’s frames in chronological order. Then, we find the x, y distance the player travels over a set frame of 3 frames (approximately 0.1 seconds). Then, we compute speed using the Euclidean distance and dividing by the elapsed time (~0.1 seconds). Finally, we slot the speed column right after the <code>Image Id</code> column for better readability. We name this new dataset <code>players</code>.</p>
-<div id="d092906d" class="cell" data-execution_count="4">
+<div id="ab26a81e" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">FPS <span class="op" style="color: #5E5E5E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">FPS <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">30</span>                  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># tracking frame rate (frames per second)</span></span>
-<span id="cb4-2">SMOOTH_K <span class="op" style="color: #5E5E5E;
+<span id="cb5-2">SMOOTH_K <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">3</span>              <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># central-difference half-window (~0.1 s each side)</span></span>
-<span id="cb4-3">FT_PER_S_TO_MPH <span class="op" style="color: #5E5E5E;
+<span id="cb5-3">FT_PER_S_TO_MPH <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">0.6818</span>  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># 1 ft/s = 0.6818 mph</span></span>
-<span id="cb4-4">MAX_SPEED_MPH <span class="op" style="color: #5E5E5E;
+<span id="cb5-4">MAX_SPEED_MPH <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">30.0</span>      <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># human skaters peak ~25 mph; above this is a tracking glitch</span></span>
-<span id="cb4-5">MAX_SPEED_FPS <span class="op" style="color: #5E5E5E;
+<span id="cb5-5">MAX_SPEED_FPS <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> MAX_SPEED_MPH <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> FT_PER_S_TO_MPH</span>
-<span id="cb4-6"></span>
-<span id="cb4-7">players <span class="op" style="color: #5E5E5E;
+<span id="cb5-6"></span>
+<span id="cb5-7">players <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb4-8">    tracking</span>
-<span id="cb4-9">    .<span class="bu" style="color: null;
+<span id="cb5-8">    tracking</span>
+<span id="cb5-9">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -797,11 +954,11 @@ background-color: null;
 font-style: inherit;">==</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Player"</span>)</span>
-<span id="cb4-10">    .with_columns(</span>
-<span id="cb4-11">        <span class="co" style="color: #5E5E5E;
+<span id="cb5-10">    .with_columns(</span>
+<span id="cb5-11">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Numeric frame index from the Image Id suffix, and jersey as a string for matching.</span></span>
-<span id="cb4-12">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-12">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Image Id"</span>).<span class="bu" style="color: null;
 background-color: null;
@@ -812,27 +969,27 @@ background-color: null;
 font-style: inherit;">list</span>.last().cast(pl.Int64).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>),</span>
-<span id="cb4-13">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-13">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Player Jersey Number"</span>).cast(pl.String).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Jersey"</span>),</span>
-<span id="cb4-14">    )</span>
-<span id="cb4-15">    <span class="co" style="color: #5E5E5E;
+<span id="cb5-14">    )</span>
+<span id="cb5-15">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Drop rows whose jersey couldn't be read: they'd all collapse into one bogus "null"</span></span>
-<span id="cb4-16">    <span class="co" style="color: #5E5E5E;
+<span id="cb5-16">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># track, and differencing positions of *different* players invents huge fake speeds.</span></span>
-<span id="cb4-17">    .<span class="bu" style="color: null;
+<span id="cb5-17">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Jersey"</span>).is_not_null())</span>
-<span id="cb4-18">    <span class="co" style="color: #5E5E5E;
+<span id="cb5-18">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Order each player's frames in time so shift() walks consecutive samples.</span></span>
-<span id="cb4-19">    .sort([<span class="st" style="color: #20794D;
+<span id="cb5-19">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -843,11 +1000,11 @@ background-color: null;
 font-style: inherit;">"Jersey"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>])</span>
-<span id="cb4-20">    .with_columns(</span>
-<span id="cb4-21">        <span class="co" style="color: #5E5E5E;
+<span id="cb5-20">    .with_columns(</span>
+<span id="cb5-21">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Central difference over +/- SMOOTH_K frames, partitioned per player-period.</span></span>
-<span id="cb4-22">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-22">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -856,7 +1013,7 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>).shift(SMOOTH_K))</span>
-<span id="cb4-23">            .over([<span class="st" style="color: #20794D;
+<span id="cb5-23">            .over([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -867,7 +1024,7 @@ background-color: null;
 font-style: inherit;">"Jersey"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dx"</span>),</span>
-<span id="cb4-24">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-24">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -876,7 +1033,7 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>).shift(SMOOTH_K))</span>
-<span id="cb4-25">            .over([<span class="st" style="color: #20794D;
+<span id="cb5-25">            .over([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -887,7 +1044,7 @@ background-color: null;
 font-style: inherit;">"Jersey"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dy"</span>),</span>
-<span id="cb4-26">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-26">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -896,7 +1053,7 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>).shift(SMOOTH_K))</span>
-<span id="cb4-27">            .over([<span class="st" style="color: #20794D;
+<span id="cb5-27">            .over([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -907,12 +1064,12 @@ background-color: null;
 font-style: inherit;">"Jersey"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dframe"</span>),</span>
-<span id="cb4-28">    )</span>
-<span id="cb4-29">    .with_columns(</span>
-<span id="cb4-30">        <span class="co" style="color: #5E5E5E;
+<span id="cb5-28">    )</span>
+<span id="cb5-29">    .with_columns(</span>
+<span id="cb5-30">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># dt = frames / fps (seconds); speed = displacement / dt, in feet per second.</span></span>
-<span id="cb4-31">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-31">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dx"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -935,15 +1092,15 @@ background-color: null;
 font-style: inherit;">/</span> FPS)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>)</span>
-<span id="cb4-32">    )</span>
-<span id="cb4-33">    .with_columns(</span>
-<span id="cb4-34">        <span class="co" style="color: #5E5E5E;
+<span id="cb5-32">    )</span>
+<span id="cb5-33">    .with_columns(</span>
+<span id="cb5-34">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Null out physically impossible speeds (tracking ID-swaps / position jumps) so</span></span>
-<span id="cb4-35">        <span class="co" style="color: #5E5E5E;
+<span id="cb5-35">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># they don't poison the per-shot pick or its fallback median.</span></span>
-<span id="cb4-36">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-36">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -954,28 +1111,28 @@ background-color: null;
 font-style: inherit;">None</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>)</span>
-<span id="cb4-37">    )</span>
-<span id="cb4-38">    .with_columns(</span>
-<span id="cb4-39">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb5-37">    )</span>
+<span id="cb5-38">    .with_columns(</span>
+<span id="cb5-39">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">*</span> FT_PER_S_TO_MPH).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_mph"</span>)</span>
-<span id="cb4-40">    )</span>
-<span id="cb4-41">)</span></code></pre></div></div>
+<span id="cb5-40">    )</span>
+<span id="cb5-41">)</span></code></pre></div></div>
 </details>
 </div>
 <p>Then, from the <code>events</code> dataset, we filter for Shot and Goal events and mutate a column for the shot id, the unique identifier for each shot in the dataset. We call this new dataset <code>shots</code>.</p>
 <p>Then, we left join the <code>players</code> dataset on the <code>shots</code> dataset. Among the shooter’s tracking frames within 1 second of the shot, we filter for the frame closest to the shot time and extract the shooter’s speed at the time of the shot. We get the speed in both mph (miles per hour) and fps (feet per second).</p>
-<div id="ac831f11" class="cell" data-execution_count="5">
+<div id="b804d46e" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">shots <span class="op" style="color: #5E5E5E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">shots <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb5-2">    events.<span class="bu" style="color: null;
+<span id="cb6-2">    events.<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -984,8 +1141,8 @@ background-color: null;
 font-style: inherit;">"Shot"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Goal"</span>]))</span>
-<span id="cb5-3">    .with_columns(</span>
-<span id="cb5-4">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-3">    .with_columns(</span>
+<span id="cb6-4">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Team"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -994,26 +1151,26 @@ background-color: null;
 font-style: inherit;">"Home_Team"</span>)).then(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Home"</span>))</span>
-<span id="cb5-5">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb6-5">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Away"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Track_Team"</span>)</span>
-<span id="cb5-6">    )</span>
-<span id="cb5-7">    .with_row_index(<span class="st" style="color: #20794D;
+<span id="cb6-6">    )</span>
+<span id="cb6-7">    .with_row_index(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>)</span>
-<span id="cb5-8">)</span>
-<span id="cb5-9"></span>
-<span id="cb5-10"><span class="co" style="color: #5E5E5E;
+<span id="cb6-8">)</span>
+<span id="cb6-9"></span>
+<span id="cb6-10"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Candidate shooter frames: same player, within the event second (+/-1s), valid position.</span></span>
-<span id="cb5-11">cand <span class="op" style="color: #5E5E5E;
+<span id="cb6-11">cand <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb5-12">    shots.join(</span>
-<span id="cb5-13">        players.select([</span>
-<span id="cb5-14">            <span class="st" style="color: #20794D;
+<span id="cb6-12">    shots.join(</span>
+<span id="cb6-13">        players.select([</span>
+<span id="cb6-14">            <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1026,15 +1183,15 @@ background-color: null;
 font-style: inherit;">"Game_Clock_Seconds"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>,</span>
-<span id="cb5-15">            <span class="st" style="color: #20794D;
+<span id="cb6-15">            <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>,</span>
-<span id="cb5-16">        ]),</span>
-<span id="cb5-17">        left_on<span class="op" style="color: #5E5E5E;
+<span id="cb6-16">        ]),</span>
+<span id="cb6-17">        left_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -1045,7 +1202,7 @@ background-color: null;
 font-style: inherit;">"Track_Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Player_Id"</span>],</span>
-<span id="cb5-18">        right_on<span class="op" style="color: #5E5E5E;
+<span id="cb6-18">        right_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -1060,8 +1217,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>,</span>
-<span id="cb5-19">    )</span>
-<span id="cb5-20">    .<span class="bu" style="color: null;
+<span id="cb6-19">    )</span>
+<span id="cb6-20">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1076,18 +1233,18 @@ background-color: null;
 font-style: inherit;">&lt;=</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">1</span>)</span>
-<span id="cb5-21">    .<span class="bu" style="color: null;
+<span id="cb6-21">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>).is_not_null()</span>
-<span id="cb5-22">            <span class="op" style="color: #5E5E5E;
+<span id="cb6-22">            <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">&amp;</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>).is_not_null())</span>
-<span id="cb5-23">    .with_columns(</span>
-<span id="cb5-24">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-23">    .with_columns(</span>
+<span id="cb6-24">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1098,7 +1255,7 @@ background-color: null;
 font-style: inherit;">**</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">2</span></span>
-<span id="cb5-25">         <span class="op" style="color: #5E5E5E;
+<span id="cb6-25">         <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">+</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1113,7 +1270,7 @@ background-color: null;
 font-style: inherit;">2</span>).sqrt().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"d_direct"</span>),</span>
-<span id="cb5-26">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-26">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1124,7 +1281,7 @@ background-color: null;
 font-style: inherit;">**</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">2</span></span>
-<span id="cb5-27">         <span class="op" style="color: #5E5E5E;
+<span id="cb6-27">         <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">+</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1139,16 +1296,16 @@ background-color: null;
 font-style: inherit;">2</span>).sqrt().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"d_flip"</span>),</span>
-<span id="cb5-28">    )</span>
-<span id="cb5-29">    .with_columns(</span>
-<span id="cb5-30">        pl.min_horizontal(<span class="st" style="color: #20794D;
+<span id="cb6-28">    )</span>
+<span id="cb6-29">    .with_columns(</span>
+<span id="cb6-30">        pl.min_horizontal(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"d_direct"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"d_flip"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"match_dist"</span>),</span>
-<span id="cb5-31">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-31">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"d_flip"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1157,34 +1314,34 @@ background-color: null;
 font-style: inherit;">"d_direct"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>),</span>
-<span id="cb5-32">    )</span>
-<span id="cb5-33">)</span>
-<span id="cb5-34"></span>
-<span id="cb5-35"><span class="co" style="color: #5E5E5E;
+<span id="cb6-32">    )</span>
+<span id="cb6-33">)</span>
+<span id="cb6-34"></span>
+<span id="cb6-35"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Release frame = the candidate closest to the release point (nulls_last so a real</span></span>
-<span id="cb5-36"><span class="co" style="color: #5E5E5E;
+<span id="cb6-36"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># match is never beaten by a missing distance).</span></span>
-<span id="cb5-37">release <span class="op" style="color: #5E5E5E;
+<span id="cb6-37">release <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb5-38">    cand.sort(<span class="st" style="color: #20794D;
+<span id="cb6-38">    cand.sort(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"match_dist"</span>, nulls_last<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb5-39">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb6-39">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, maintain_order<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb5-40">    .first()</span>
-<span id="cb5-41">    .select([<span class="st" style="color: #20794D;
+<span id="cb6-40">    .first()</span>
+<span id="cb6-41">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1195,43 +1352,43 @@ background-color: null;
 font-style: inherit;">"used_flip"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>])</span>
-<span id="cb5-42">)</span>
-<span id="cb5-43"></span>
-<span id="cb5-44"><span class="co" style="color: #5E5E5E;
+<span id="cb6-42">)</span>
+<span id="cb6-43"></span>
+<span id="cb6-44"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Fallback: representative speed over the whole event-second window.</span></span>
-<span id="cb5-45">window_med <span class="op" style="color: #5E5E5E;
+<span id="cb6-45">window_med <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> cand.group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>).agg(</span>
-<span id="cb5-46">    pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-46">    pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>).median().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps_window_median"</span>),</span>
-<span id="cb5-47">    pl.<span class="bu" style="color: null;
+<span id="cb6-47">    pl.<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">len</span>().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"n_candidates"</span>),</span>
-<span id="cb5-48">)</span>
-<span id="cb5-49"></span>
-<span id="cb5-50"><span class="co" style="color: #5E5E5E;
+<span id="cb6-48">)</span>
+<span id="cb6-49"></span>
+<span id="cb6-50"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># A match is trusted when the closest frame is within ~10 ft and has a defined speed;</span></span>
-<span id="cb5-51"><span class="co" style="color: #5E5E5E;
+<span id="cb6-51"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># otherwise fall back to the window median (flagged), or mark no tracking at all.</span></span>
-<span id="cb5-52">MAX_MATCH_DIST <span class="op" style="color: #5E5E5E;
+<span id="cb6-52">MAX_MATCH_DIST <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">10.0</span></span>
-<span id="cb5-53">shot_speeds <span class="op" style="color: #5E5E5E;
+<span id="cb6-53">shot_speeds <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb5-54">    shots.join(release, on<span class="op" style="color: #5E5E5E;
+<span id="cb6-54">    shots.join(release, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -1240,7 +1397,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb5-55">    .join(window_med, on<span class="op" style="color: #5E5E5E;
+<span id="cb6-55">    .join(window_med, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -1249,8 +1406,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb5-56">    .with_columns(</span>
-<span id="cb5-57">        pl.when((pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-56">    .with_columns(</span>
+<span id="cb6-57">        pl.when((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"match_dist"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1259,16 +1416,16 @@ background-color: null;
 font-style: inherit;">&amp;</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>).is_not_null())</span>
-<span id="cb5-58">          .then(pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-58">          .then(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>))</span>
-<span id="cb5-59">          .otherwise(pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-59">          .otherwise(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps_window_median"</span>))</span>
-<span id="cb5-60">          .alias(<span class="st" style="color: #20794D;
+<span id="cb6-60">          .alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shooter_speed_fps"</span>),</span>
-<span id="cb5-61">        pl.when((pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-61">        pl.when((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"match_dist"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1277,23 +1434,23 @@ background-color: null;
 font-style: inherit;">&amp;</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps"</span>).is_not_null())</span>
-<span id="cb5-62">          .then(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb6-62">          .then(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"matched"</span>))</span>
-<span id="cb5-63">          .when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-63">          .when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"speed_fps_window_median"</span>).is_not_null())</span>
-<span id="cb5-64">          .then(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb6-64">          .then(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"fallback_window_median"</span>))</span>
-<span id="cb5-65">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb6-65">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"no_tracking"</span>))</span>
-<span id="cb5-66">          .alias(<span class="st" style="color: #20794D;
+<span id="cb6-66">          .alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"match_quality"</span>),</span>
-<span id="cb5-67">    )</span>
-<span id="cb5-68">    .with_columns((pl.col(<span class="st" style="color: #20794D;
+<span id="cb6-67">    )</span>
+<span id="cb6-68">    .with_columns((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shooter_speed_fps"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1302,7 +1459,7 @@ background-color: null;
 font-style: inherit;">0.6818</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shooter_speed_mph"</span>))</span>
-<span id="cb5-69">    .sort([<span class="st" style="color: #20794D;
+<span id="cb6-69">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1313,7 +1470,7 @@ background-color: null;
 font-style: inherit;">False</span>, <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>])</span>
-<span id="cb5-70">)</span></code></pre></div></div>
+<span id="cb6-70">)</span></code></pre></div></div>
 </details>
 </div>
 </section>
@@ -1321,17 +1478,17 @@ font-style: inherit;">True</span>])</span>
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>Pressure is defined as the distance from the shot location to the closest and second-closest defending skater. According to the paper, a continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>We join the shots dataset to every defending skater and measure the distance between the defender and the shot. We filter for the closest and second-closest defender to find the distance from the shot location to the closest and second closest defenders.</p>
-<div id="9784ca11" class="cell" data-execution_count="6">
+<div id="722db5e3" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="co" style="color: #5E5E5E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Defending skaters only: opposite tracking team, real jersey numbers, no goalies.</span></span>
-<span id="cb6-2">defenders <span class="op" style="color: #5E5E5E;
+<span id="cb7-2">defenders <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb6-3">    players</span>
-<span id="cb6-4">    .<span class="bu" style="color: null;
+<span id="cb7-3">    players</span>
+<span id="cb7-4">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1340,8 +1497,8 @@ background-color: null;
 font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Go"</span>)</span>
-<span id="cb6-5">    .select([</span>
-<span id="cb6-6">        <span class="st" style="color: #20794D;
+<span id="cb7-5">    .select([</span>
+<span id="cb7-6">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1350,25 +1507,25 @@ background-color: null;
 font-style: inherit;">"Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>,</span>
-<span id="cb6-7">        <span class="st" style="color: #20794D;
+<span id="cb7-7">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>,</span>
-<span id="cb6-8">    ])</span>
-<span id="cb6-9">)</span>
-<span id="cb6-10"></span>
-<span id="cb6-11"><span class="co" style="color: #5E5E5E;
+<span id="cb7-8">    ])</span>
+<span id="cb7-9">)</span>
+<span id="cb7-10"></span>
+<span id="cb7-11"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Per shot: the defending team, the release frame, and the shot location in tracking</span></span>
-<span id="cb6-12"><span class="co" style="color: #5E5E5E;
+<span id="cb7-12"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># coordinates (negated when the release match used the flip).</span></span>
-<span id="cb6-13">shot_frames <span class="op" style="color: #5E5E5E;
+<span id="cb7-13">shot_frames <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb6-14">    shots</span>
-<span id="cb6-15">    .join(release.select([<span class="st" style="color: #20794D;
+<span id="cb7-14">    shots</span>
+<span id="cb7-15">    .join(release.select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1383,8 +1540,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb6-16">    .with_columns(</span>
-<span id="cb6-17">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-16">    .with_columns(</span>
+<span id="cb7-17">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Track_Team"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1393,37 +1550,37 @@ background-color: null;
 font-style: inherit;">"Home"</span>).then(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Away"</span>))</span>
-<span id="cb6-18">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb7-18">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Home"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Def_Team"</span>),</span>
-<span id="cb6-19">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-19">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"X_Coordinate"</span>))</span>
-<span id="cb6-20">          .otherwise(pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-20">          .otherwise(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"X_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>),</span>
-<span id="cb6-21">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-21">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>))</span>
-<span id="cb6-22">          .otherwise(pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-22">          .otherwise(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>),</span>
-<span id="cb6-23">    )</span>
-<span id="cb6-24">    .select([<span class="st" style="color: #20794D;
+<span id="cb7-23">    )</span>
+<span id="cb7-24">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1438,18 +1595,18 @@ background-color: null;
 font-style: inherit;">"Shot_X"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>])</span>
-<span id="cb6-25">)</span>
-<span id="cb6-26"></span>
-<span id="cb6-27"><span class="co" style="color: #5E5E5E;
+<span id="cb7-25">)</span>
+<span id="cb7-26"></span>
+<span id="cb7-27"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Join each shot to every defending skater in its release frame; measure distance.</span></span>
-<span id="cb6-28">pressure <span class="op" style="color: #5E5E5E;
+<span id="cb7-28">pressure <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb6-29">    shot_frames</span>
-<span id="cb6-30">    .join(</span>
-<span id="cb6-31">        defenders,</span>
-<span id="cb6-32">        left_on<span class="op" style="color: #5E5E5E;
+<span id="cb7-29">    shot_frames</span>
+<span id="cb7-30">    .join(</span>
+<span id="cb7-31">        defenders,</span>
+<span id="cb7-32">        left_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -1460,7 +1617,7 @@ background-color: null;
 font-style: inherit;">"Def_Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb6-33">        right_on<span class="op" style="color: #5E5E5E;
+<span id="cb7-33">        right_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -1471,14 +1628,14 @@ background-color: null;
 font-style: inherit;">"Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb6-34">        how<span class="op" style="color: #5E5E5E;
+<span id="cb7-34">        how<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>,</span>
-<span id="cb6-35">    )</span>
-<span id="cb6-36">    .with_columns(</span>
-<span id="cb6-37">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-35">    )</span>
+<span id="cb7-36">    .with_columns(</span>
+<span id="cb7-37">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1489,7 +1646,7 @@ background-color: null;
 font-style: inherit;">**</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">2</span></span>
-<span id="cb6-38">         <span class="op" style="color: #5E5E5E;
+<span id="cb7-38">         <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">+</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1502,19 +1659,19 @@ background-color: null;
 font-style: inherit;">**</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">2</span>)</span>
-<span id="cb6-39">        .sqrt().alias(<span class="st" style="color: #20794D;
+<span id="cb7-39">        .sqrt().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dist"</span>)</span>
-<span id="cb6-40">    )</span>
-<span id="cb6-41">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb7-40">    )</span>
+<span id="cb7-41">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, maintain_order<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb6-42">    .agg(</span>
-<span id="cb6-43">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-42">    .agg(</span>
+<span id="cb7-43">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dist"</span>).sort(nulls_last<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1523,16 +1680,16 @@ background-color: null;
 font-style: inherit;">True</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dists"</span>),</span>
-<span id="cb6-44">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-44">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dist"</span>).is_not_null().<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">sum</span>().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"n_defenders"</span>),</span>
-<span id="cb6-45">    )</span>
-<span id="cb6-46">    .with_columns(</span>
-<span id="cb6-47">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-45">    )</span>
+<span id="cb7-46">    .with_columns(</span>
+<span id="cb7-47">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dists"</span>).<span class="bu" style="color: null;
 background-color: null;
@@ -1545,7 +1702,7 @@ background-color: null;
 font-style: inherit;">True</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"closest_def_dist"</span>),</span>
-<span id="cb6-48">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb7-48">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dists"</span>).<span class="bu" style="color: null;
 background-color: null;
@@ -1558,16 +1715,16 @@ background-color: null;
 font-style: inherit;">True</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"second_closest_def_dist"</span>),</span>
-<span id="cb6-49">    )</span>
-<span id="cb6-50">    .drop(<span class="st" style="color: #20794D;
+<span id="cb7-49">    )</span>
+<span id="cb7-50">    .drop(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"def_dists"</span>)</span>
-<span id="cb6-51">)</span>
-<span id="cb6-52"></span>
-<span id="cb6-53"><span class="co" style="color: #5E5E5E;
+<span id="cb7-51">)</span>
+<span id="cb7-52"></span>
+<span id="cb7-53"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Attach to the shots table for use as expected-goals model features.</span></span>
-<span id="cb6-54">shot_pressure <span class="op" style="color: #5E5E5E;
+<span id="cb7-54">shot_pressure <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> shots.join(pressure, on<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1578,7 +1735,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>).select(</span>
-<span id="cb6-55">    <span class="st" style="color: #20794D;
+<span id="cb7-55">    <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1591,14 +1748,14 @@ background-color: null;
 font-style: inherit;">"Event"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Detail_1"</span>,</span>
-<span id="cb6-56">    <span class="st" style="color: #20794D;
+<span id="cb7-56">    <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"n_defenders"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"closest_def_dist"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"second_closest_def_dist"</span>,</span>
-<span id="cb6-57">)</span></code></pre></div></div>
+<span id="cb7-57">)</span></code></pre></div></div>
 </details>
 </div>
 </section>
@@ -1617,31 +1774,31 @@ font-style: inherit;">"second_closest_def_dist"</span>,</span>
 <li>avg_puck_speed – average puck speed in the 1 s before the shot</li>
 </ol>
 <p>The “meridian” is the Y = 0 line running net-to-net down the center of the ice; the puck crosses it when its Y coordinate changes sign (lateral / east-west movement, which forces the goalie across and raises shot danger). Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.</p>
-<div id="7059e16b" class="cell" data-execution_count="7">
+<div id="26a2cf0a" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="co" style="color: #5E5E5E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we</span></span>
-<span id="cb7-2"><span class="co" style="color: #5E5E5E;
+<span id="cb8-2"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># only drop physically impossible jumps (tracking glitches) above ~110 mph.</span></span>
-<span id="cb7-3">MAX_PUCK_SPEED_MPH <span class="op" style="color: #5E5E5E;
+<span id="cb8-3">MAX_PUCK_SPEED_MPH <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">110.0</span></span>
-<span id="cb7-4">MAX_PUCK_SPEED_FPS <span class="op" style="color: #5E5E5E;
+<span id="cb8-4">MAX_PUCK_SPEED_FPS <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> MAX_PUCK_SPEED_MPH <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> FT_PER_S_TO_MPH</span>
-<span id="cb7-5"></span>
-<span id="cb7-6">puck <span class="op" style="color: #5E5E5E;
+<span id="cb8-5"></span>
+<span id="cb8-6">puck <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-7">    tracking</span>
-<span id="cb7-8">    .<span class="bu" style="color: null;
+<span id="cb8-7">    tracking</span>
+<span id="cb8-8">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1650,13 +1807,13 @@ background-color: null;
 font-style: inherit;">==</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Puck"</span>)</span>
-<span id="cb7-9">    .<span class="bu" style="color: null;
+<span id="cb8-9">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>).is_not_null())</span>
-<span id="cb7-10">    .with_columns(</span>
-<span id="cb7-11">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-10">    .with_columns(</span>
+<span id="cb8-11">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Image Id"</span>).<span class="bu" style="color: null;
 background-color: null;
@@ -1667,16 +1824,16 @@ background-color: null;
 font-style: inherit;">list</span>.last().cast(pl.Int64).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>)</span>
-<span id="cb7-12">    )</span>
-<span id="cb7-13">    .sort([<span class="st" style="color: #20794D;
+<span id="cb8-12">    )</span>
+<span id="cb8-13">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>])</span>
-<span id="cb7-14">    .with_columns(</span>
-<span id="cb7-15">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-14">    .with_columns(</span>
+<span id="cb8-15">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1691,7 +1848,7 @@ background-color: null;
 font-style: inherit;">"Period"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dx"</span>),</span>
-<span id="cb7-16">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-16">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1706,7 +1863,7 @@ background-color: null;
 font-style: inherit;">"Period"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dy"</span>),</span>
-<span id="cb7-17">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-17">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>).shift(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1721,9 +1878,9 @@ background-color: null;
 font-style: inherit;">"Period"</span>]).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dframe"</span>),</span>
-<span id="cb7-18">    )</span>
-<span id="cb7-19">    .with_columns(</span>
-<span id="cb7-20">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-18">    )</span>
+<span id="cb8-19">    .with_columns(</span>
+<span id="cb8-20">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dx"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1746,9 +1903,9 @@ background-color: null;
 font-style: inherit;">/</span> FPS)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_speed_fps"</span>)</span>
-<span id="cb7-21">    )</span>
-<span id="cb7-22">    .with_columns(</span>
-<span id="cb7-23">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-21">    )</span>
+<span id="cb8-22">    .with_columns(</span>
+<span id="cb8-23">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_speed_fps"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1759,8 +1916,8 @@ background-color: null;
 font-style: inherit;">None</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_speed_fps"</span>)</span>
-<span id="cb7-24">    )</span>
-<span id="cb7-25">    .select([<span class="st" style="color: #20794D;
+<span id="cb8-24">    )</span>
+<span id="cb8-25">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1773,7 +1930,7 @@ background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_speed_fps"</span>])</span>
-<span id="cb7-26">    .rename({<span class="st" style="color: #20794D;
+<span id="cb8-26">    .rename({<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
@@ -1782,18 +1939,18 @@ background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_y"</span>})</span>
-<span id="cb7-27">)</span>
-<span id="cb7-28"></span>
-<span id="cb7-29"><span class="co" style="color: #5E5E5E;
+<span id="cb8-27">)</span>
+<span id="cb8-28"></span>
+<span id="cb8-29"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Per-shot orientation: the shot location in tracking coords (negated when the release</span></span>
-<span id="cb7-30"><span class="co" style="color: #5E5E5E;
+<span id="cb8-30"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># match used the flip) tells us which goal line the team attacks (+89 if X &gt; 0).</span></span>
-<span id="cb7-31">shot_orient <span class="op" style="color: #5E5E5E;
+<span id="cb8-31">shot_orient <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-32">    shots.join(release.select([<span class="st" style="color: #20794D;
+<span id="cb8-32">    shots.join(release.select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1808,8 +1965,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb7-33">    .with_columns(</span>
-<span id="cb7-34">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-33">    .with_columns(</span>
+<span id="cb8-34">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1820,8 +1977,8 @@ background-color: null;
 font-style: inherit;">"X_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X_track"</span>)</span>
-<span id="cb7-35">    )</span>
-<span id="cb7-36">    .with_columns((pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-35">    )</span>
+<span id="cb8-36">    .with_columns((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X_track"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -1830,7 +1987,7 @@ background-color: null;
 font-style: inherit;">0</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"attack_right"</span>))</span>
-<span id="cb7-37">    .select([<span class="st" style="color: #20794D;
+<span id="cb8-37">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -1841,26 +1998,26 @@ background-color: null;
 font-style: inherit;">"Frame"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"attack_right"</span>])</span>
-<span id="cb7-38">    .rename({<span class="st" style="color: #20794D;
+<span id="cb8-38">    .rename({<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>: <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_frame"</span>})</span>
-<span id="cb7-39">)</span>
-<span id="cb7-40"></span>
-<span id="cb7-41"><span class="co" style="color: #5E5E5E;
+<span id="cb8-39">)</span>
+<span id="cb8-40"></span>
+<span id="cb8-41"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Puck samples in the same period within 5 s (150 frames) before each shot, with</span></span>
-<span id="cb7-42"><span class="co" style="color: #5E5E5E;
+<span id="cb8-42"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># coordinates normalized to attack-right. (The meridian sign-change is invariant to the</span></span>
-<span id="cb7-43"><span class="co" style="color: #5E5E5E;
+<span id="cb8-43"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># flip; normalizing X only matters for the goal-line distance.)</span></span>
-<span id="cb7-44">window <span class="op" style="color: #5E5E5E;
+<span id="cb8-44">window <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-45">    shot_orient.join(puck, on<span class="op" style="color: #5E5E5E;
+<span id="cb8-45">    shot_orient.join(puck, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -1871,7 +2028,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb7-46">    .<span class="bu" style="color: null;
+<span id="cb8-46">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1886,8 +2043,8 @@ background-color: null;
 font-style: inherit;">5</span> <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">*</span> FPS))</span>
-<span id="cb7-47">    .with_columns(</span>
-<span id="cb7-48">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-47">    .with_columns(</span>
+<span id="cb8-48">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"attack_right"</span>)).then(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1898,7 +2055,7 @@ background-color: null;
 font-style: inherit;">"puck_x"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"px"</span>),</span>
-<span id="cb7-49">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-49">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"attack_right"</span>)).then(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1909,21 +2066,21 @@ background-color: null;
 font-style: inherit;">"puck_y"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"py"</span>),</span>
-<span id="cb7-50">    )</span>
-<span id="cb7-51">    .sort([<span class="st" style="color: #20794D;
+<span id="cb8-50">    )</span>
+<span id="cb8-51">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>])</span>
-<span id="cb7-52">)</span>
-<span id="cb7-53"></span>
-<span id="cb7-54"><span class="co" style="color: #5E5E5E;
+<span id="cb8-52">)</span>
+<span id="cb8-53"></span>
+<span id="cb8-54"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Feature 3: average puck speed over the 1 s (30 frames) before the shot.</span></span>
-<span id="cb7-55">avg_speed <span class="op" style="color: #5E5E5E;
+<span id="cb8-55">avg_speed <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-56">    window.<span class="bu" style="color: null;
+<span id="cb8-56">    window.<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -1938,37 +2095,37 @@ background-color: null;
 font-style: inherit;">1</span> <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">*</span> FPS))</span>
-<span id="cb7-57">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb8-57">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>)</span>
-<span id="cb7-58">    .agg(pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-58">    .agg(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"puck_speed_fps"</span>).mean().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"avg_puck_speed_fps"</span>))</span>
-<span id="cb7-59">    .with_columns((pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-59">    .with_columns((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"avg_puck_speed_fps"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">*</span> FT_PER_S_TO_MPH).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"avg_puck_speed_mph"</span>))</span>
-<span id="cb7-60">)</span>
-<span id="cb7-61"></span>
-<span id="cb7-62"><span class="co" style="color: #5E5E5E;
+<span id="cb8-60">)</span>
+<span id="cb8-61"></span>
+<span id="cb8-62"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Features 1 &amp; 2: the most recent meridian crossing within the 5 s window. A crossing is</span></span>
-<span id="cb7-63"><span class="co" style="color: #5E5E5E;
+<span id="cb8-63"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># a sign change in py between consecutive frames; we linearly interpolate the X where</span></span>
-<span id="cb7-64"><span class="co" style="color: #5E5E5E;
+<span id="cb8-64"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># py = 0, then keep the latest crossing (largest Frame) before the shot.</span></span>
-<span id="cb7-65">crossings <span class="op" style="color: #5E5E5E;
+<span id="cb8-65">crossings <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-66">    window.with_columns(</span>
-<span id="cb7-67">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-66">    window.with_columns(</span>
+<span id="cb8-67">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"px"</span>).shift(<span class="dv" style="color: #AD0000;
 background-color: null;
@@ -1977,7 +2134,7 @@ background-color: null;
 font-style: inherit;">"shot_id"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"px_prev"</span>),</span>
-<span id="cb7-68">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-68">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"py"</span>).shift(<span class="dv" style="color: #AD0000;
 background-color: null;
@@ -1986,8 +2143,8 @@ background-color: null;
 font-style: inherit;">"shot_id"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"py_prev"</span>),</span>
-<span id="cb7-69">    )</span>
-<span id="cb7-70">    .<span class="bu" style="color: null;
+<span id="cb8-69">    )</span>
+<span id="cb8-70">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2004,8 +2161,8 @@ background-color: null;
 font-style: inherit;">&lt;</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">0</span>))</span>
-<span id="cb7-71">    .with_columns(</span>
-<span id="cb7-72">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-71">    .with_columns(</span>
+<span id="cb8-72">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"px_prev"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2034,22 +2191,22 @@ background-color: null;
 font-style: inherit;">"py_prev"</span>))).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"x_cross"</span>)</span>
-<span id="cb7-73">    )</span>
-<span id="cb7-74">    .sort([<span class="st" style="color: #20794D;
+<span id="cb8-73">    )</span>
+<span id="cb8-74">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>])</span>
-<span id="cb7-75">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb8-75">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, maintain_order<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb7-76">    .last()</span>
-<span id="cb7-77">    .with_columns(</span>
-<span id="cb7-78">        ((pl.col(<span class="st" style="color: #20794D;
+<span id="cb8-76">    .last()</span>
+<span id="cb8-77">    .with_columns(</span>
+<span id="cb8-78">        ((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_frame"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2060,7 +2217,7 @@ background-color: null;
 font-style: inherit;">/</span> FPS).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"time_since_meridian"</span>),</span>
-<span id="cb7-79">        (<span class="dv" style="color: #AD0000;
+<span id="cb8-79">        (<span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">89</span> <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2071,23 +2228,23 @@ background-color: null;
 font-style: inherit;">"meridian_cross_dist"</span>),  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># negative if crossed behind the net</span></span>
-<span id="cb7-80">    )</span>
-<span id="cb7-81">    .select([<span class="st" style="color: #20794D;
+<span id="cb8-80">    )</span>
+<span id="cb8-81">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"time_since_meridian"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"meridian_cross_dist"</span>])</span>
-<span id="cb7-82">)</span>
-<span id="cb7-83"></span>
-<span id="cb7-84"><span class="co" style="color: #5E5E5E;
+<span id="cb8-82">)</span>
+<span id="cb8-83"></span>
+<span id="cb8-84"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Attach to the shots table; nulls mark shots with no meridian crossing in the prior 5 s.</span></span>
-<span id="cb7-85">pre_shot_movement <span class="op" style="color: #5E5E5E;
+<span id="cb8-85">pre_shot_movement <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb7-86">    shots.join(crossings, on<span class="op" style="color: #5E5E5E;
+<span id="cb8-86">    shots.join(crossings, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -2096,7 +2253,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb7-87">    .join(avg_speed, on<span class="op" style="color: #5E5E5E;
+<span id="cb8-87">    .join(avg_speed, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -2105,7 +2262,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb7-88">    .sort([<span class="st" style="color: #20794D;
+<span id="cb8-88">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2116,8 +2273,8 @@ background-color: null;
 font-style: inherit;">False</span>, <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>])</span>
-<span id="cb7-89">    .select(</span>
-<span id="cb7-90">        <span class="st" style="color: #20794D;
+<span id="cb8-89">    .select(</span>
+<span id="cb8-90">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2130,7 +2287,7 @@ background-color: null;
 font-style: inherit;">"Event"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Detail_1"</span>,</span>
-<span id="cb7-91">        <span class="st" style="color: #20794D;
+<span id="cb8-91">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"time_since_meridian"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2139,8 +2296,8 @@ background-color: null;
 font-style: inherit;">"avg_puck_speed_fps"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"avg_puck_speed_mph"</span>,</span>
-<span id="cb7-92">    )</span>
-<span id="cb7-93">)</span></code></pre></div></div>
+<span id="cb8-92">    )</span>
+<span id="cb8-93">)</span></code></pre></div></div>
 </details>
 </div>
 <p>Feature 3: For every shot, join in all puck tracking samples from the same period within 5 seconds (150 frames) before the shot. Average puck speed over the 1 second (30 frames) before the shot. Captures how fast the puck was moving into the shot.</p>
@@ -2150,41 +2307,41 @@ font-style: inherit;">"avg_puck_speed_mph"</span>,</span>
 <section id="traffic" class="level3">
 <h3 class="anchored" data-anchor-id="traffic">Traffic</h3>
 <p>We model “traffic” by projecting each skater onto the goal line via a straight line from the shooter, then summing the Gaussian-weighted coverage of the 6-ft goal face (y ∈ [−3, 3]).</p>
-<div id="235538cc" class="cell" data-execution_count="8">
+<div id="8ee09d4a" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="im" style="color: #00769E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">import</span> numpy <span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">as</span> np</span>
-<span id="cb8-2"></span>
-<span id="cb8-3">SIGMA <span class="op" style="color: #5E5E5E;
+<span id="cb9-2"></span>
+<span id="cb9-3">SIGMA <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">1.5</span>  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Gaussian standard deviation (feet)</span></span>
-<span id="cb8-4">GOAL_HALF <span class="op" style="color: #5E5E5E;
+<span id="cb9-4">GOAL_HALF <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">3.0</span>  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># half-width of goal face (feet)</span></span>
-<span id="cb8-5"></span>
-<span id="cb8-6"></span>
-<span id="cb8-7"><span class="kw" style="color: #003B4F;
+<span id="cb9-5"></span>
+<span id="cb9-6"></span>
+<span id="cb9-7"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">def</span> _normal_cdf_batched(x: np.ndarray) <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-&gt;</span> np.ndarray:</span>
-<span id="cb8-8">    <span class="co" style="color: #5E5E5E;
+<span id="cb9-8">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">"""Vectorised normal CDF using math.erf identity: Φ(z) = 0.5*(1+erf(z/√2))."""</span></span>
-<span id="cb8-9">    <span class="cf" style="color: #003B4F;
+<span id="cb9-9">    <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">return</span> <span class="fl" style="color: #AD0000;
@@ -2200,15 +2357,15 @@ background-color: null;
 font-style: inherit;">/</span> math.sqrt(<span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">2</span>)))</span>
-<span id="cb8-10"></span>
-<span id="cb8-11"></span>
-<span id="cb8-12"><span class="co" style="color: #5E5E5E;
+<span id="cb9-10"></span>
+<span id="cb9-11"></span>
+<span id="cb9-12"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># --- Per-shot info in tracking coordinates (reuses release match) ---</span></span>
-<span id="cb8-13">shot_info <span class="op" style="color: #5E5E5E;
+<span id="cb9-13">shot_info <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb8-14">    shots.join(release.select([<span class="st" style="color: #20794D;
+<span id="cb9-14">    shots.join(release.select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2223,11 +2380,11 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb8-15">    .with_columns(</span>
-<span id="cb8-16">        <span class="co" style="color: #5E5E5E;
+<span id="cb9-15">    .with_columns(</span>
+<span id="cb9-16">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Shot location in tracking coords</span></span>
-<span id="cb8-17">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb9-17">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2238,7 +2395,7 @@ background-color: null;
 font-style: inherit;">"X_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>),</span>
-<span id="cb8-18">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb9-18">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2249,12 +2406,12 @@ background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>),</span>
-<span id="cb8-19">    )</span>
-<span id="cb8-20">    .with_columns(</span>
-<span id="cb8-21">        <span class="co" style="color: #5E5E5E;
+<span id="cb9-19">    )</span>
+<span id="cb9-20">    .with_columns(</span>
+<span id="cb9-21">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Goal line: +89 if attacking right, −89 if attacking left</span></span>
-<span id="cb8-22">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb9-22">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2269,8 +2426,8 @@ background-color: null;
 font-style: inherit;">89.0</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goal_x"</span>),</span>
-<span id="cb8-23">    )</span>
-<span id="cb8-24">    .select([<span class="st" style="color: #20794D;
+<span id="cb9-23">    )</span>
+<span id="cb9-24">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2289,16 +2446,16 @@ background-color: null;
 font-style: inherit;">"Shot_Y"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goal_x"</span>])</span>
-<span id="cb8-25">)</span>
-<span id="cb8-26"></span>
-<span id="cb8-27"><span class="co" style="color: #5E5E5E;
+<span id="cb9-25">)</span>
+<span id="cb9-26"></span>
+<span id="cb9-27"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># --- All non-goalie skaters at each shot's release frame ---</span></span>
-<span id="cb8-28">skaters_at_frame <span class="op" style="color: #5E5E5E;
+<span id="cb9-28">skaters_at_frame <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb8-29">    players</span>
-<span id="cb8-30">    .<span class="bu" style="color: null;
+<span id="cb9-29">    players</span>
+<span id="cb9-30">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2307,7 +2464,7 @@ background-color: null;
 font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Go"</span>)</span>
-<span id="cb8-31">    .select([<span class="st" style="color: #20794D;
+<span id="cb9-31">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2318,12 +2475,12 @@ background-color: null;
 font-style: inherit;">"Jersey"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>,</span>
-<span id="cb8-32">             <span class="st" style="color: #20794D;
+<span id="cb9-32">             <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>])</span>
-<span id="cb8-33">    .rename({<span class="st" style="color: #20794D;
+<span id="cb9-33">    .rename({<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
@@ -2332,17 +2489,17 @@ background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"sk_y"</span>})</span>
-<span id="cb8-34">)</span>
-<span id="cb8-35"></span>
-<span id="cb8-36"><span class="co" style="color: #5E5E5E;
+<span id="cb9-34">)</span>
+<span id="cb9-35"></span>
+<span id="cb9-36"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Join each shot with every skater present at the release frame, then drop the shooter.</span></span>
-<span id="cb8-37">occlusion_pairs <span class="op" style="color: #5E5E5E;
+<span id="cb9-37">occlusion_pairs <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb8-38">    shot_info.join(</span>
-<span id="cb8-39">        skaters_at_frame,</span>
-<span id="cb8-40">        left_on<span class="op" style="color: #5E5E5E;
+<span id="cb9-38">    shot_info.join(</span>
+<span id="cb9-39">        skaters_at_frame,</span>
+<span id="cb9-40">        left_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -2351,7 +2508,7 @@ background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb8-41">        right_on<span class="op" style="color: #5E5E5E;
+<span id="cb9-41">        right_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -2360,19 +2517,19 @@ background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb8-42">        how<span class="op" style="color: #5E5E5E;
+<span id="cb9-42">        how<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>,</span>
-<span id="cb8-43">    )</span>
-<span id="cb8-44">    <span class="co" style="color: #5E5E5E;
+<span id="cb9-43">    )</span>
+<span id="cb9-44">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Exclude the shooter (same team in tracking namespace + same jersey)</span></span>
-<span id="cb8-45">    .<span class="bu" style="color: null;
+<span id="cb9-45">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(</span>
-<span id="cb8-46">        <span class="op" style="color: #5E5E5E;
+<span id="cb9-46">        <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">~</span>((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2389,8 +2546,8 @@ background-color: null;
 font-style: inherit;">==</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Jersey"</span>)))</span>
-<span id="cb8-47">    )</span>
-<span id="cb8-48">    .<span class="bu" style="color: null;
+<span id="cb9-47">    )</span>
+<span id="cb9-48">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2399,14 +2556,14 @@ background-color: null;
 font-style: inherit;">&amp;</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"sk_y"</span>).is_not_null())</span>
-<span id="cb8-49">    <span class="co" style="color: #5E5E5E;
+<span id="cb9-49">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Compute y-intercept on the goal line</span></span>
-<span id="cb8-50">    .with_columns(</span>
-<span id="cb8-51">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb9-50">    .with_columns(</span>
+<span id="cb9-51">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>)</span>
-<span id="cb8-52">         <span class="op" style="color: #5E5E5E;
+<span id="cb9-52">         <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">+</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2415,7 +2572,7 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>))</span>
-<span id="cb8-53">           <span class="op" style="color: #5E5E5E;
+<span id="cb9-53">           <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">*</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2424,7 +2581,7 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>))</span>
-<span id="cb8-54">           <span class="op" style="color: #5E5E5E;
+<span id="cb9-54">           <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2433,14 +2590,14 @@ background-color: null;
 font-style: inherit;">-</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>))</span>
-<span id="cb8-55">        ).alias(<span class="st" style="color: #20794D;
+<span id="cb9-55">        ).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"y_goal"</span>)</span>
-<span id="cb8-56">    )</span>
-<span id="cb8-57">    <span class="co" style="color: #5E5E5E;
+<span id="cb9-56">    )</span>
+<span id="cb9-57">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Drop degenerate cases: skater at same x as shooter, or intercept is undefined</span></span>
-<span id="cb8-58">    .<span class="bu" style="color: null;
+<span id="cb9-58">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2449,29 +2606,29 @@ background-color: null;
 font-style: inherit;">&amp;</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"y_goal"</span>).is_finite())</span>
-<span id="cb8-59">)</span>
-<span id="cb8-60"></span>
-<span id="cb8-61"><span class="co" style="color: #5E5E5E;
+<span id="cb9-59">)</span>
+<span id="cb9-60"></span>
+<span id="cb9-61"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Compute Gaussian contribution per skater via map_batches</span></span>
-<span id="cb8-62">occlusion_pairs <span class="op" style="color: #5E5E5E;
+<span id="cb9-62">occlusion_pairs <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> occlusion_pairs.with_columns(</span>
-<span id="cb8-63">    pl.struct([<span class="st" style="color: #20794D;
+<span id="cb9-63">    pl.struct([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"y_goal"</span>]).map_batches(</span>
-<span id="cb8-64">        <span class="kw" style="color: #003B4F;
+<span id="cb9-64">        <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">lambda</span> s: pl.Series(</span>
-<span id="cb8-65">            _normal_cdf_batched((GOAL_HALF <span class="op" style="color: #5E5E5E;
+<span id="cb9-65">            _normal_cdf_batched((GOAL_HALF <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span> s.struct.field(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"y_goal"</span>).to_numpy()) <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> SIGMA)</span>
-<span id="cb8-66">            <span class="op" style="color: #5E5E5E;
+<span id="cb9-66">            <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span> _normal_cdf_batched((<span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2482,42 +2639,42 @@ background-color: null;
 font-style: inherit;">"y_goal"</span>).to_numpy()) <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> SIGMA)</span>
-<span id="cb8-67">        ),</span>
-<span id="cb8-68">        return_dtype<span class="op" style="color: #5E5E5E;
+<span id="cb9-67">        ),</span>
+<span id="cb9-68">        return_dtype<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>pl.Float64,</span>
-<span id="cb8-69">    ).alias(<span class="st" style="color: #20794D;
+<span id="cb9-69">    ).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"occlusion_contribution"</span>)</span>
-<span id="cb8-70">)</span>
-<span id="cb8-71"></span>
-<span id="cb8-72"><span class="co" style="color: #5E5E5E;
+<span id="cb9-70">)</span>
+<span id="cb9-71"></span>
+<span id="cb9-72"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Sum per shot</span></span>
-<span id="cb8-73">total_occlusion <span class="op" style="color: #5E5E5E;
+<span id="cb9-73">total_occlusion <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb8-74">    occlusion_pairs</span>
-<span id="cb8-75">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb9-74">    occlusion_pairs</span>
+<span id="cb9-75">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, maintain_order<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb8-76">    .agg(pl.col(<span class="st" style="color: #20794D;
+<span id="cb9-76">    .agg(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"occlusion_contribution"</span>).<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">sum</span>().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"total_occlusion"</span>))</span>
-<span id="cb8-77">)</span>
-<span id="cb8-78"></span>
-<span id="cb8-79">shot_occlusion <span class="op" style="color: #5E5E5E;
+<span id="cb9-77">)</span>
+<span id="cb9-78"></span>
+<span id="cb9-79">shot_occlusion <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb8-80">    shots.join(total_occlusion, on<span class="op" style="color: #5E5E5E;
+<span id="cb9-80">    shots.join(total_occlusion, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -2526,8 +2683,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb8-81">    .select(</span>
-<span id="cb8-82">        <span class="st" style="color: #20794D;
+<span id="cb9-81">    .select(</span>
+<span id="cb9-82">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2540,15 +2697,15 @@ background-color: null;
 font-style: inherit;">"Event"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Detail_1"</span>,</span>
-<span id="cb8-83">        <span class="st" style="color: #20794D;
+<span id="cb9-83">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"X_Coordinate"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"total_occlusion"</span>,</span>
-<span id="cb8-84">    )</span>
-<span id="cb8-85">)</span></code></pre></div></div>
+<span id="cb9-84">    )</span>
+<span id="cb9-85">)</span></code></pre></div></div>
 </details>
 </div>
 </section>
@@ -2563,16 +2720,16 @@ font-style: inherit;">"total_occlusion"</span>,</span>
 <p>Angle Discrepancy: <img src="https://latex.codecogs.com/png.latex?%5Czeta%20=%20%5Carccos!%5Cleft(%5Cfrac%7Bs%20%5Ccdot%20g%7D%7B%7Cs%7C,%7Cg%7C%7D%5Cright)%5Ctimes%5Cfrac%7B180%7D%7B%5Cpi%7D"></p>
 <p>Angle between the line to the shooter and the line to the goaltender, in degrees. A well-positioned goalie should be close to 0° (in line with the shooter and goal center); a goalie caught out of position will have a larger angle.</p>
 <p>Goaltender Depth: Straight-line distance from the goaltender to the goal center, i.e.&nbsp;how far out of the crease the goalie has come.</p>
-<div id="18a73084" class="cell" data-execution_count="9">
+<div id="ca88c054" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Per shot: defending team, release frame, shot location in tracking coords, goal center.</span></span>
-<span id="cb9-2">shot_goalie_ctx <span class="op" style="color: #5E5E5E;
+<span id="cb10-2">shot_goalie_ctx <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb9-3">    shots.join(release.select([<span class="st" style="color: #20794D;
+<span id="cb10-3">    shots.join(release.select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2587,8 +2744,8 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb9-4">    .with_columns(</span>
-<span id="cb9-5">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-4">    .with_columns(</span>
+<span id="cb10-5">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Track_Team"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2597,41 +2754,41 @@ background-color: null;
 font-style: inherit;">"Home"</span>).then(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Away"</span>))</span>
-<span id="cb9-6">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
+<span id="cb10-6">          .otherwise(pl.lit(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Home"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Def_Team"</span>),</span>
-<span id="cb9-7">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-7">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"X_Coordinate"</span>))</span>
-<span id="cb9-8">          .otherwise(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-8">          .otherwise(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"X_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>),</span>
-<span id="cb9-9">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-9">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"used_flip"</span>)).then(<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span>pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>))</span>
-<span id="cb9-10">          .otherwise(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-10">          .otherwise(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Y_Coordinate"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>),</span>
-<span id="cb9-11">    )</span>
-<span id="cb9-12">    .with_columns(</span>
-<span id="cb9-13">        <span class="co" style="color: #5E5E5E;
+<span id="cb10-11">    )</span>
+<span id="cb10-12">    .with_columns(</span>
+<span id="cb10-13">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Goal line: +89 if attacking right, −89 if attacking left.</span></span>
-<span id="cb9-14">        pl.when(pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-14">        pl.when(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2646,8 +2803,8 @@ background-color: null;
 font-style: inherit;">89.0</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goal_x"</span>),</span>
-<span id="cb9-15">    )</span>
-<span id="cb9-16">    .select([<span class="st" style="color: #20794D;
+<span id="cb10-15">    )</span>
+<span id="cb10-16">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2664,16 +2821,16 @@ background-color: null;
 font-style: inherit;">"Shot_Y"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goal_x"</span>])</span>
-<span id="cb9-17">)</span>
-<span id="cb9-18"></span>
-<span id="cb9-19"><span class="co" style="color: #5E5E5E;
+<span id="cb10-17">)</span>
+<span id="cb10-18"></span>
+<span id="cb10-19"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Defending goaltender's tracked position at each shot's release frame.</span></span>
-<span id="cb9-20">goalies <span class="op" style="color: #5E5E5E;
+<span id="cb10-20">goalies <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb9-21">    players</span>
-<span id="cb9-22">    .<span class="bu" style="color: null;
+<span id="cb10-21">    players</span>
+<span id="cb10-22">    .<span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">filter</span>(pl.col(<span class="st" style="color: #20794D;
 background-color: null;
@@ -2682,7 +2839,7 @@ background-color: null;
 font-style: inherit;">==</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Go"</span>)</span>
-<span id="cb9-23">    .select([<span class="st" style="color: #20794D;
+<span id="cb10-23">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Game"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2691,12 +2848,12 @@ background-color: null;
 font-style: inherit;">"Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>,</span>
-<span id="cb9-24">             <span class="st" style="color: #20794D;
+<span id="cb10-24">             <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>])</span>
-<span id="cb9-25">    .rename({<span class="st" style="color: #20794D;
+<span id="cb10-25">    .rename({<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Rink Location X (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
@@ -2705,15 +2862,15 @@ background-color: null;
 font-style: inherit;">"Rink Location Y (Feet)"</span>: <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goalie_y"</span>})</span>
-<span id="cb9-26">)</span>
-<span id="cb9-27"></span>
-<span id="cb9-28">goaltender_positioning <span class="op" style="color: #5E5E5E;
+<span id="cb10-26">)</span>
+<span id="cb10-27"></span>
+<span id="cb10-28">goaltender_positioning <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb9-29">    shot_goalie_ctx</span>
-<span id="cb9-30">    .join(</span>
-<span id="cb9-31">        goalies,</span>
-<span id="cb9-32">        left_on<span class="op" style="color: #5E5E5E;
+<span id="cb10-29">    shot_goalie_ctx</span>
+<span id="cb10-30">    .join(</span>
+<span id="cb10-31">        goalies,</span>
+<span id="cb10-32">        left_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -2724,7 +2881,7 @@ background-color: null;
 font-style: inherit;">"Def_Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb9-33">        right_on<span class="op" style="color: #5E5E5E;
+<span id="cb10-33">        right_on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>[<span class="st" style="color: #20794D;
 background-color: null;
@@ -2735,28 +2892,28 @@ background-color: null;
 font-style: inherit;">"Team"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Frame"</span>],</span>
-<span id="cb9-34">        how<span class="op" style="color: #5E5E5E;
+<span id="cb10-34">        how<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>,</span>
-<span id="cb9-35">    )</span>
-<span id="cb9-36">    <span class="co" style="color: #5E5E5E;
+<span id="cb10-35">    )</span>
+<span id="cb10-36">    <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># One goalie per team-frame is expected; guard against duplicate tracks.</span></span>
-<span id="cb9-37">    .group_by(<span class="st" style="color: #20794D;
+<span id="cb10-37">    .group_by(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, maintain_order<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>)</span>
-<span id="cb9-38">    .first()</span>
-<span id="cb9-39">    .with_columns(</span>
-<span id="cb9-40">        <span class="co" style="color: #5E5E5E;
+<span id="cb10-38">    .first()</span>
+<span id="cb10-39">    .with_columns(</span>
+<span id="cb10-40">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Vectors from the goal center to the shooter and to the goalie.</span></span>
-<span id="cb9-41">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-41">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_X"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2765,12 +2922,12 @@ background-color: null;
 font-style: inherit;">"goal_x"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_x"</span>),</span>
-<span id="cb9-42">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-42">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Shot_Y"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_y"</span>),</span>
-<span id="cb9-43">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-43">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goalie_x"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2779,14 +2936,14 @@ background-color: null;
 font-style: inherit;">"goal_x"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_x"</span>),</span>
-<span id="cb9-44">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-44">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goalie_y"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_y"</span>),</span>
-<span id="cb9-45">    )</span>
-<span id="cb9-46">    .with_columns(</span>
-<span id="cb9-47">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-45">    )</span>
+<span id="cb10-46">    .with_columns(</span>
+<span id="cb10-47">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_x"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2803,7 +2960,7 @@ background-color: null;
 font-style: inherit;">2</span>).sqrt().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_mag"</span>),</span>
-<span id="cb9-48">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-48">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_x"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2820,7 +2977,7 @@ background-color: null;
 font-style: inherit;">2</span>).sqrt().alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_mag"</span>),</span>
-<span id="cb9-49">        (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-49">        (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_x"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2837,20 +2994,20 @@ background-color: null;
 font-style: inherit;">"g_y"</span>)).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dot"</span>),</span>
-<span id="cb9-50">    )</span>
-<span id="cb9-51">    .with_columns(</span>
-<span id="cb9-52">        <span class="co" style="color: #5E5E5E;
+<span id="cb10-50">    )</span>
+<span id="cb10-51">    .with_columns(</span>
+<span id="cb10-52">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># d_g: distance from the goaltender to the goal center.</span></span>
-<span id="cb9-53">        pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-53">        pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_mag"</span>).alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goaltender_depth"</span>),</span>
-<span id="cb9-54">        <span class="co" style="color: #5E5E5E;
+<span id="cb10-54">        <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># ζ (degrees): undefined when shooter or goalie sits exactly at the goal center.</span></span>
-<span id="cb9-55">        pl.when((pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-55">        pl.when((pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"s_mag"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2865,8 +3022,8 @@ background-color: null;
 font-style: inherit;">&gt;</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">0</span>))</span>
-<span id="cb9-56">          .then(</span>
-<span id="cb9-57">              (pl.col(<span class="st" style="color: #20794D;
+<span id="cb10-56">          .then(</span>
+<span id="cb10-57">              (pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"dot"</span>) <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -2877,7 +3034,7 @@ background-color: null;
 font-style: inherit;">*</span> pl.col(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"g_mag"</span>)))</span>
-<span id="cb9-58">              .clip(<span class="op" style="color: #5E5E5E;
+<span id="cb10-58">              .clip(<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span><span class="fl" style="color: #AD0000;
 background-color: null;
@@ -2890,30 +3047,30 @@ background-color: null;
 font-style: inherit;">180</span> <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">/</span> math.pi)</span>
-<span id="cb9-59">          )</span>
-<span id="cb9-60">          .otherwise(<span class="va" style="color: #111111;
+<span id="cb10-59">          )</span>
+<span id="cb10-60">          .otherwise(<span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">None</span>)</span>
-<span id="cb9-61">          .alias(<span class="st" style="color: #20794D;
+<span id="cb10-61">          .alias(<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"angle_discrepancy"</span>),</span>
-<span id="cb9-62">    )</span>
-<span id="cb9-63">    .select([<span class="st" style="color: #20794D;
+<span id="cb10-62">    )</span>
+<span id="cb10-63">    .select([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"shot_id"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"angle_discrepancy"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goaltender_depth"</span>])</span>
-<span id="cb9-64">)</span>
-<span id="cb9-65"></span>
-<span id="cb9-66"><span class="co" style="color: #5E5E5E;
+<span id="cb10-64">)</span>
+<span id="cb10-65"></span>
+<span id="cb10-66"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Attach to the shots table for use as expected-goals model features.</span></span>
-<span id="cb9-67">shot_goaltender <span class="op" style="color: #5E5E5E;
+<span id="cb10-67">shot_goaltender <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> (</span>
-<span id="cb9-68">    shots.join(goaltender_positioning, on<span class="op" style="color: #5E5E5E;
+<span id="cb10-68">    shots.join(goaltender_positioning, on<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -2922,7 +3079,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"left"</span>)</span>
-<span id="cb9-69">    .sort([<span class="st" style="color: #20794D;
+<span id="cb10-69">    .sort([<span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2933,8 +3090,8 @@ background-color: null;
 font-style: inherit;">False</span>, <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>])</span>
-<span id="cb9-70">    .select(</span>
-<span id="cb9-71">        <span class="st" style="color: #20794D;
+<span id="cb10-70">    .select(</span>
+<span id="cb10-71">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Period"</span>, <span class="st" style="color: #20794D;
 background-color: null;
@@ -2947,16 +3104,19 @@ background-color: null;
 font-style: inherit;">"Event"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"Detail_1"</span>,</span>
-<span id="cb9-72">        <span class="st" style="color: #20794D;
+<span id="cb10-72">        <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"angle_discrepancy"</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"goaltender_depth"</span>,</span>
-<span id="cb9-73">    )</span>
-<span id="cb9-74">)</span></code></pre></div></div>
+<span id="cb10-73">    )</span>
+<span id="cb10-74">)</span></code></pre></div></div>
 </details>
 </div>
 </section>
+</section>
+<section id="feature-based-expected-goals-xg-model" class="level2">
+<h2 class="anchored" data-anchor-id="feature-based-expected-goals-xg-model">Feature-Based Expected Goals (xG) Model</h2>
 <section id="extra-stuff" class="level3">
 <h3 class="anchored" data-anchor-id="extra-stuff">Extra Stuff</h3>
 <p>So (shot_frame - Frame) / FPS is “how long ago, in seconds, did the puck last cross the center line before this shot was taken.” It’s the same frames→seconds conversion used elsewhere in the notebook (e.g.&nbsp;the dframe / FPS term in the speed formula);</p>

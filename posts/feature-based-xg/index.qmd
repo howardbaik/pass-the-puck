@@ -19,7 +19,7 @@ description: "This post is an implementation of the Feature-Based Expected Goals
 
 ## Introduction
 
-This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of [Jonathan Arsenault](https://www.linkedin.com/in/jonathan-arsenault-a0b414114/)'s [PhD thesis](https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f). As the thesis puts it, "xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal." Here, those features come from event and tracking data and capture shooter motion, pressure from defenders, pre-shot puck movement, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot's probability of becoming a goal.
+This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of [Jonathan Arsenault](https://www.linkedin.com/in/jonathan-arsenault-a0b414114/)'s [PhD thesis](https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f). As the thesis puts it, "xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal." Here, those features come from event and tracking data and capture shooter location, shooter motion, pressure from defenders, pre-shot puck movement, traffic in the shooting lane, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot's probability of becoming a goal.
 
 We will use data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-Data-Cup-2026), which spans 10 games and combines Stathletes-tracked event data with player tracking data generated from broadcast video.
 
@@ -195,7 +195,7 @@ shot_outcomes = (
 
 ![](./shot_outcomes_table.png)
 
-Again, the shot outcome distribution in our dataset is very similar to the thesis's dataset. Table 2.2 shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.
+Again, the shot outcome distribution in our dataset is very similar to the thesis's dataset. Table 2.2 from the thesis shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.
 
 ### Distribution of Shot Location
 
@@ -205,19 +205,59 @@ We look at the distribution of shot locations in the events dataset. We filter f
 
 ![](goal_locations_ice_rink.png){width=60% fig-align="center"}
 
-There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, evidentally a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, which is a low-danger area of the rink. 
+There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, a low-danger area of the rink. 
 
 
 ## Feature Engineering
 
-TODO: Introduce Feature Engineering of `events` and `tracking` data to extract features for the Features-Based xG Model in the paper.
-
-
-
+We extract features from the `events` and `tracking` data to create features for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.
 
 ### Shot Location
 
-TODO: 
+We get the angle of the shot (`Shot_Angle`), the Meridian distance, which is the distance between the shot location and the meridian (royal road) `d_m`, and the shot distance (distance between the shot location and the goal) (`d_trig` and `d_euclidean`).
+
+```{python}
+
+(
+    events
+    .filter(pl.col("Event").is_in(["Shot", "Goal"]))
+    # Normalize to right side
+    .with_columns(
+        pl.when(pl.col("X_Coordinate") < 0)
+        .then(-pl.col("X_Coordinate"))
+        .otherwise(pl.col("X_Coordinate"))
+        .alias("X_Coordinate"),
+
+        pl.when(pl.col("X_Coordinate") < 0)
+        .then(-pl.col("Y_Coordinate"))
+        .otherwise(pl.col("Y_Coordinate"))
+        .alias("Y_Coordinate"),
+    )
+    # Shot angle (degrees) and meridian distance
+    .with_columns(
+        (
+            pl.arctan2(pl.col("Y_Coordinate"), 89 - pl.col("X_Coordinate"))
+            .abs()
+            * (180 / math.pi)
+        ).alias("Shot_Angle"),
+        pl.col("Y_Coordinate").abs().alias("d_m"),
+    )
+    # Distance via trigonometry: d = d_m / sin(θ), fallback to (89 - x) when Y = 0
+    .with_columns(
+        pl.when(pl.col("d_m") == 0)
+        .then(89 - pl.col("X_Coordinate"))
+        .otherwise(
+            pl.col("d_m") / (pl.col("Shot_Angle") * math.pi / 180).sin()
+        )
+        .alias("d_trig"),
+        # Euclidean distance as sanity check
+        ((89 - pl.col("X_Coordinate")).pow(2) + pl.col("Y_Coordinate").pow(2))
+        .sqrt()
+        .alias("d_euclidean"),
+    )
+)
+```
+
 
 ### Shooter Motion
 
@@ -719,6 +759,9 @@ shot_goaltender = (
 )
 ```
 
+
+
+## Feature-Based Expected Goals (xG) Model
 
 
 

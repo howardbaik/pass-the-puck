@@ -203,7 +203,7 @@ We look at the distribution of shot locations in the events dataset. We filter f
 
 <br>
 
-![](goal_locations_ice_rink.png){width=60% fig-align="center"}
+![](goal_locations_ice_rink.png){width=55% fig-align="center"}
 
 There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, a low-danger area of the rink. 
 
@@ -214,7 +214,19 @@ We extract features from the `events` and `tracking` data to create features for
 
 ### Shot Location
 
-We get the angle of the shot (`Shot_Angle`), the Meridian distance, which is the distance between the shot location and the meridian (royal road) `d_m`, and the shot distance (distance between the shot location and the goal) (`d_trig` and `d_euclidean`).
+Section 2.4.1.1 of the thesis defines three shot-location variables: the shot angle, the shot distance, and the meridian distance.
+
+![](shot-location.png){width=40% fig-align="center"}
+
+1. The shot angle $\theta$ in degrees is defined as:
+
+$$
+\theta =\frac{180}{\pi} \left| \text{atan2}(y, x - 89) \right|.
+$$
+
+2. The meridian distance $d_m$ is the perpendicular distance from the shot location to the meridian (the "royal road" running down the center of the ice). 
+
+3. The shot distance $d$ is the distance between the shot location and the goal.
 
 ```{python}
 
@@ -261,7 +273,43 @@ We get the angle of the shot (`Shot_Angle`), the Meridian distance, which is the
 
 ### Shooter Motion
 
-To get the shooter's speed at the instant of their shot, we use the `tracking` dataset. First, we filter for the rows where the `tracking` data corresponds to a player (as opposed to the puck). Then, we use the `Image Id` column to extract the frame number. For example, an `Image Id` of `2025-10-11 Team A @ Team D_065468` would correspond to frame number 065468. Then, we order each player's frames in chronological order. Then, we find the x, y distance the player travels over a set frame of 3 frames (approximately 0.1 seconds).  Then, we compute speed using the Euclidean distance and dividing by the elapsed time (~0.1 seconds). Finally, we slot the speed column right after the `Image Id` column for better readability. We name this new dataset `players`.
+Section 2.4.1.2 of the thesis describes two additional features: shooter's speed and direction of travel. For convenience, our model only uses shooter's speed, which is the magnitude of the shooter's velocity at the instant of their shot.
+
+There are a few parameters we set before data wrangling/data cleaning:
+
+1. `FPS = 30` is the tracking frame rate (frames per second). The tracking dataset contains the `Image ID` column, whose suffix is a frame counter that
+ticks ~30 times per game-clock second (e.g. "_066486" -> "_066487" -> "_066488"). On average, there are 30 frames per game-clock second, and we store this information in `FPS` to convert frames to seconds using this formula:
+
+$$
+\text{time (seconds)} = \frac{\text{frame count}}{\text{FPS}}
+$$
+
+Later, we use this time interval to calculate velocity:
+
+$$
+\text{speed (ft/s)} = \frac{\text{distance (ft)}}{\text{time (seconds)}}
+$$
+
+2. `SMOOTH_K = 3` is the window (in frames) used to estimate speed by central difference. Rather than measuring how far a player moved between two *adjacent* frames, which is noisy, we compare the player's position `SMOOTH_K` frames ahead with their position `SMOOTH_K` frames behind, then divide by the time that elapsed between those two samples:
+
+$$
+\text{speed} \approx \frac{\sqrt{(x_{i+k} - x_{i-k})^2 + (y_{i+k} - y_{i-k})^2}}{(\text{frame}_{i+k} - \text{frame}_{i-k}) / \text{FPS}}, \quad k = \texttt{SMOOTH\_K}.
+$$
+
+This method averages out per-frame jitter and gives a more stable speed estimate.
+
+3. `FT_PER_S_TO_MPH = 0.6818` is the conversion factor from feet per second to miles per hour.
+
+4. `MAX_SPEED_MPH = 30.0` is the maximum speed (in mph) we consider valid for our model. The maximum skating speed for an NHL player is around 25 mph, so a speed above 30 mph is determined a tracking glitch. 
+
+
+First, we filter for the rows where the `tracking` data corresponds to a player (as opposed to the puck). Then, we use the `Image Id` column to extract the frame number. For example, an `Image Id` of `2025-10-11 Team A @ Team D_065468` would correspond to frame number 065468. Then, we order each player's frames in chronological order. Then, we find the x, y distance the player travels over a set frame of 3 frames (approximately 0.1 seconds). Then, we compute speed using the Euclidean distance and dividing by the elapsed time (~0.1 seconds). Finally, we slot the speed column right after the `Image Id` column for better readability. We name this new dataset `players`.
+```{python}
+FPS = 30                  # tracking frame rate (frames per second)
+SMOOTH_K = 3              # central-difference half-window (~0.1 s each side)
+FT_PER_S_TO_MPH = 0.6818  # 1 ft/s = 0.6818 mph
+MAX_SPEED_MPH = 30.0      # human skaters peak ~25 mph; above this is a tracking glitch
+```
 ```{python}
 FPS = 30                  # tracking frame rate (frames per second)
 SMOOTH_K = 3              # central-difference half-window (~0.1 s each side)

@@ -232,7 +232,7 @@ window.Quarto = {
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the Big Data Cup 2026 GitHub repository and tag each events and tracking data with a “Game” id. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we concatenate all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="378ac66f" class="cell" data-execution_count="1">
+<div id="6231b8bb" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
@@ -307,7 +307,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="./shot_types_distribution.png" class="img-fluid"></p>
-<div id="daf52c56" class="cell" data-execution_count="2">
+<div id="6f10c378" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>shot_types <span class="op">=</span> (</span>
@@ -347,7 +347,7 @@ window.Quarto = {
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="e6c207a7" class="cell" data-execution_count="3">
+<div id="c6f9983e" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>descriptions <span class="op">=</span> {</span>
@@ -427,7 +427,7 @@ window.Quarto = {
 <li><p>The meridian distance <span class="math inline">\(d_m\)</span> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
 <li><p>The shot distance <span class="math inline">\(d\)</span> is the distance between the shot location and the goal.</p></li>
 </ol>
-<div id="83315a74" class="cell" data-execution_count="4">
+<div id="1a412851" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>(</span>
@@ -476,10 +476,11 @@ window.Quarto = {
 <p>Section 2.4.1.2 of the thesis describes two additional features: shooter’s speed and direction of travel. For convenience, our model only uses shooter’s speed, which is the magnitude of the shooter’s velocity at the instant of their shot.</p>
 <p>There are a few parameters we set before data wrangling/data cleaning:</p>
 <ol type="1">
-<li><code>FPS = 30</code> # tracking frame rate (frames per second) SMOOTH_K = 3 # central-difference half-window (~0.1 s each side) FT_PER_S_TO_MPH = 0.6818 # 1 ft/s = 0.6818 mph MAX_SPEED_MPH = 30.0</li>
+<li><code>FPS = 30</code> # tracking frame rate (frames per second)</li>
+<li>SMOOTH_K = 3 # central-difference half-window (~0.1 s each side) FT_PER_S_TO_MPH = 0.6818 # 1 ft/s = 0.6818 mph MAX_SPEED_MPH = 30.0</li>
 </ol>
 <p>First, we filter for the rows where the <code>tracking</code> data corresponds to a player (as opposed to the puck). Then, we use the <code>Image Id</code> column to extract the frame number. For example, an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> would correspond to frame number 065468. Then, we order each player’s frames in chronological order. Then, we find the x, y distance the player travels over a set frame of 3 frames (approximately 0.1 seconds). Then, we compute speed using the Euclidean distance and dividing by the elapsed time (~0.1 seconds). Finally, we slot the speed column right after the <code>Image Id</code> column for better readability. We name this new dataset <code>players</code>.</p>
-<div id="c8e69bcf" class="cell" data-execution_count="5">
+<div id="75bb148d" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>FPS <span class="op">=</span> <span class="dv">30</span>                  <span class="co"># tracking frame rate (frames per second)</span></span>
@@ -488,7 +489,7 @@ window.Quarto = {
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>MAX_SPEED_MPH <span class="op">=</span> <span class="fl">30.0</span>      <span class="co"># human skaters peak ~25 mph; above this is a tracking glitch</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
-<div id="c95971f3" class="cell" data-execution_count="6">
+<div id="70b899cf" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>FPS <span class="op">=</span> <span class="dv">30</span>                  <span class="co"># tracking frame rate (frames per second)</span></span>
@@ -536,7 +537,7 @@ window.Quarto = {
 </div>
 <p>Then, from the <code>events</code> dataset, we filter for Shot and Goal events and mutate a column for the shot id, the unique identifier for each shot in the dataset. We call this new dataset <code>shots</code>.</p>
 <p>Then, we left join the <code>players</code> dataset on the <code>shots</code> dataset. Among the shooter’s tracking frames within 1 second of the shot, we filter for the frame closest to the shot time and extract the shooter’s speed at the time of the shot. We get the speed in both mph (miles per hour) and fps (feet per second).</p>
-<div id="b1107937" class="cell" data-execution_count="7">
+<div id="1ec54dd2" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>shots <span class="op">=</span> (</span>
@@ -616,7 +617,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>Pressure is defined as the distance from the shot location to the closest and second-closest defending skater. According to the paper, a continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>We join the shots dataset to every defending skater and measure the distance between the defender and the shot. We filter for the closest and second-closest defender to find the distance from the shot location to the closest and second closest defenders.</p>
-<div id="cd1fdf75" class="cell" data-execution_count="8">
+<div id="5d2380ad" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defending skaters only: opposite tracking team, real jersey numbers, no goalies.</span></span>
@@ -694,7 +695,7 @@ window.Quarto = {
 <li>avg_puck_speed – average puck speed in the 1 s before the shot</li>
 </ol>
 <p>The “meridian” is the Y = 0 line running net-to-net down the center of the ice; the puck crosses it when its Y coordinate changes sign (lateral / east-west movement, which forces the goalie across and raises shot danger). Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.</p>
-<div id="86f2a59d" class="cell" data-execution_count="9">
+<div id="00c9a744" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we</span></span>
@@ -799,7 +800,7 @@ window.Quarto = {
 <section id="traffic" class="level3">
 <h3 class="anchored" data-anchor-id="traffic">Traffic</h3>
 <p>We model “traffic” by projecting each skater onto the goal line via a straight line from the shooter, then summing the Gaussian-weighted coverage of the 6-ft goal face (y ∈ [−3, 3]).</p>
-<div id="729ea78b" class="cell" data-execution_count="10">
+<div id="ee4ad7af" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
@@ -901,7 +902,7 @@ window.Quarto = {
 <p>Angle Discrepancy: <span class="math display">\[\zeta = \arccos!\left(\frac{s \cdot g}{|s|,|g|}\right)\times\frac{180}{\pi}\]</span></p>
 <p>Angle between the line to the shooter and the line to the goaltender, in degrees. A well-positioned goalie should be close to 0° (in line with the shooter and goal center); a goalie caught out of position will have a larger angle.</p>
 <p>Goaltender Depth: Straight-line distance from the goaltender to the goal center, i.e.&nbsp;how far out of the crease the goalie has come.</p>
-<div id="157956ad" class="cell" data-execution_count="11">
+<div id="4726905f" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per shot: defending team, release frame, shot location in tracking coords, goal center.</span></span>

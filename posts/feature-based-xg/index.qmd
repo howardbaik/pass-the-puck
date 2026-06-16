@@ -28,7 +28,7 @@ We will use data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-
 
 ### Data Import
 
-We import the data from the Big Data Cup 2026 GitHub repository and tag each events and tracking data with a "Game" id. Then, we convert the clock strings ("MM:SS" / "M:SS") to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we concatenate all the tracking files into one dataset of every tracked player-frame across all games and periods.  
+We import the data from the [Big Data Cup 2026 GitHub repository](https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data) and tag each events and tracking data with a Game ID. Then, we convert the clock strings ("MM:SS" / "M:SS") to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.  
 
 
 ```{python}
@@ -210,7 +210,7 @@ There are 58 goals in our 10-game dataset and most of the goals are from the hig
 
 ## Feature Engineering
 
-We extract features from the `events` and `tracking` data for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.
+We extract features from the *events and *tracking* data for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.
 
 ### Shot Location
 
@@ -286,7 +286,7 @@ $$
 \text{time (seconds)} = \frac{\text{frame count}}{\text{FPS}}
 $$
 
-&emsp; &nbsp; Later, we use this time interval to calculate velocity:
+&emsp; &nbsp; Later, we use this time interval to calculate speed:
 
 $$
 \text{speed (ft/s)} = \frac{\text{distance (ft)}}{\text{time (seconds)}}
@@ -302,7 +302,7 @@ $$
 
 3. `FT_PER_S_TO_MPH = 0.6818` is the conversion factor from feet per second (fps) to miles per hour (mph).
 
-4. `MAX_SPEED_MPH = 30.0` is the maximum speed (in mph) we consider valid for our model. The maximum skating speed for an NHL player is just under 25 mph, so a speed above 30 mph is determined a tracking glitch. 
+4. `MAX_SPEED_MPH = 30.0` is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch. 
 
 To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the `Image Id` column, so that an `Image Id` of `2025-10-11 Team A @ Team D_065468` gives frame `065468`. After sorting each player's frames in chronological order, we take the change in `x` and `y` across the `SMOOTH_K`-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the `FPS = 30` factor introduced above. We call this new dataset "players".
 
@@ -623,7 +623,12 @@ pre_shot_movement = (
 
 ### Traffic
 
-We model "traffic" by projecting each skater onto the goal line via a straight line from the shooter, then summing the Gaussian-weighted coverage of the 6-ft goal face (y ∈ [−3, 3]).
+Section 2.4.1.5 of the thesis models "traffic" with *goal-face occlusion*. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the "shadow" that skater casts onto the net from the shooter's viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.
+
+![](occlusion_density.png){width=55% fig-align="center"}
+
+To calculate occlusion, we left-join the goaltender-excluded players tracking data on the shots dataset, and filter out the row of the shooter. Then, using geometry, we calculate the y-intercept of the shooter on the goal line.
+
 
 ```{python}
 import numpy as np

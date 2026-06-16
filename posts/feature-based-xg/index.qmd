@@ -270,7 +270,7 @@ $$
 )
 ```
 
-TODO: GT Table
+![](shot_location_table.png)
 
 
 ### Shooter Motion
@@ -426,15 +426,14 @@ shot_speeds = (
 ```
 
 
-![](shot_speeds_table.png)
+![](shot_speeds_table.png){fig-align="center"}
 
 
 ### Pressure
 
-In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest
-defender captures pressure from multiple defenders.
+In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.
 
-We join the shots dataset to every defending skater and measure the distance between the defender and the shot. We filter for the closest and second-closest defender to find the distance from the shot location to the closest and second closest defenders.
+To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.
 
 ```{python}
 # Defending skaters only: opposite tracking team, real jersey numbers, no goalies.
@@ -497,14 +496,14 @@ shot_pressure = shots.join(pressure, on="shot_id", how="left").select(
 ```
 
 
-TODO: GT Table
+![](pressure_table.png){fig-align="center"}
 
 
 ### Pre-Shot Movement
 
 Rink Coordinates:
 
-![](./rink_coords.png){width=80% fig-align="center"}
+![](rink_coords_meridian.png){width=70% fig-align="center"}
 
 
 Pre-shot movement features, focused on lateral puck movement (east-west):
@@ -514,8 +513,7 @@ Pre-shot movement features, focused on lateral puck movement (east-west):
 3. avg_puck_speed       -- average puck speed in the 1 s before the shot
 
 The "meridian" is the Y = 0 line running net-to-net down the center of the ice; the
-puck crosses it when its Y coordinate changes sign (lateral / east-west movement, 
-which forces the goalie across and raises shot danger). Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.
+puck crosses it when its Y coordinate changes sign which forces the goalie across and raises shot danger. Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.
 
 ```{python}
 # The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we
@@ -622,6 +620,9 @@ Finds the most recent meridian crossing within the 5 s window. A crossing is a m
 `time_since_meridian = (shot_frame − Frame) / FPS` gives us the time in seconds since the puck last crossed the meridian before the shot was taken. 
 `meridian_cross_dist = 89 − x_cross` is calculated as the distance from where the puck crossed the meridian to the goal line (89 feet), with negative values indicating crossings behind the net.
 
+
+TODO: GT Table
+
 ### Traffic
 
 We model "traffic" by projecting each skater onto the goal line via a straight line from the shooter, then summing the Gaussian-weighted coverage of the 6-ft goal face (y ∈ [−3, 3]).
@@ -714,7 +715,7 @@ shot_occlusion = (
 )
 ```
 
-
+TODO: GT Table
 
 ### Goaltender Positioning
 
@@ -806,9 +807,11 @@ shot_goaltender = (
 )
 ```
 
+TODO: GT Table
 
 
 ## Feature-Based Expected Goals (xG) Model
+
 
 
 

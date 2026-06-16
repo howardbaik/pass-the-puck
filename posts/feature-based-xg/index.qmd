@@ -627,7 +627,19 @@ Section 2.4.1.5 of the thesis models "traffic" with *goal-face occlusion*. For e
 
 ![](occlusion_density.png){width=55% fig-align="center"}
 
-To calculate occlusion, we left-join the goaltender-excluded players tracking data on the shots dataset, and filter out the row of the shooter. Then, using geometry, we calculate the y-intercept of the shooter on the goal line.
+To calculate occlusion, we take the player tracking data with goaltenders removed and left-join it onto the shots dataset, pairing each shot with every skater on the ice at its release frame, then drop the shooter row. For each remaining skater, we use the linear interpolation equation below to find where the line from the shooter through that skater crosses the goal line, i.e. its y-intercept on the goal line.
+
+$$
+y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac{\text{GoalX} - \text{ShotX}}{\text{SkaterX} - \text{ShotX}}
+$$
+
+Then, we find the total occlusion density between the two goal posts using the formula below to compute the probability mass of a normal bell curve:
+
+$$
+\text{Occlusion Density} = \Phi\left(\frac{\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right) - \Phi\left(\frac{-\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right)
+$$
+
+
 
 
 ```{python}
@@ -706,7 +718,10 @@ occlusion_pairs = occlusion_pairs.with_columns(
 total_occlusion = (
     occlusion_pairs
     .group_by("shot_id", maintain_order=True)
-    .agg(pl.col("occlusion_contribution").sum().alias("total_occlusion"))
+    .agg(
+        (1.0 - (1.0 - pl.col("occlusion_contribution")).product())
+        .alias("total_occlusion")
+    )
 )
 
 shot_occlusion = (
@@ -718,11 +733,9 @@ shot_occlusion = (
 )
 ```
 
-TODO: GT Table
+![](shot_occlusion_table.png){fig-align="center"}
 
 ### Goaltender Positioning
-
-![](./goaltender-diagram.png){fig-align="center"}
 
 Figure shows goaltender angle $\zeta$ and depth $d_g$ relative to the goal center, defined as the point on the goal line equidistant from the posts. 
 

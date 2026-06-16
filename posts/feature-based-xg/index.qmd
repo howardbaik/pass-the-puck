@@ -501,19 +501,26 @@ shot_pressure = shots.join(pressure, on="shot_id", how="left").select(
 
 ### Pre-Shot Movement
 
-Rink Coordinates:
+Section 2.4.1.4 of the thesis discusses pre-shot movement: how the puck moved in the seconds leading up to the shot. It is a key predictor because lateral puck movement forces the goaltender to move side to side, which can leave them out of position when the shot is released.
 
-![](rink_coords_meridian.png){width=70% fig-align="center"}
+This section focuses on the meridian line, which is visualized below:
+
+![](rink_coords_meridian.png){width=85% fig-align="center"}
 
 
-Pre-shot movement features, focused on lateral puck movement (east-west):
+Pre-shot movement features are focused on lateral puck movement (east-west):
 
-1. time_since_meridian  -- seconds since the puck last crossed the meridian
-2. meridian_cross_dist  -- where it crossed, as distance to the goal line
-3. avg_puck_speed       -- average puck speed in the 1 s before the shot
+1. Time since the puck last crossed the meridian: Seconds since the puck last crossed the meridian.
+2. Location where the puck crossed the meridian: Measured as the distance to the goal line
+3. Average puck speed: Average puck speed in the 1-second before the shot.
 
-The "meridian" is the Y = 0 line running net-to-net down the center of the ice; the
-puck crosses it when its Y coordinate changes sign which forces the goalie across and raises shot danger. Features 1 and 2 are only defined when the crossing happened within 5 s before the shot.
+Features 1 and 2 are only defined when the crossing happened within 5-seconds before the shot.
+
+To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in `x` and `y` across the `SMOOTH_K`-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the `FPS = 30` factor introduced above. We call this new dataset "puck".
+
+Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the "window" dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck's y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.
+
+To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.
 
 ```{python}
 # The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we
@@ -611,17 +618,8 @@ pre_shot_movement = (
 )
 ```
 
-Feature 3:
-For every shot, join in all puck tracking samples from the same period within 5 seconds (150 frames) before the shot. Average puck speed over the 1 second (30 frames) before the shot. Captures how fast the puck was moving into the shot.
+![](pre_shot_movement_table.png)
 
-Features 1 and 2:
-Finds the most recent meridian crossing within the 5 s window. A crossing is a moment when the puck crosses the center line of the rink. We'll identify this by checking when the puck's y-coordinate changes sign (from positive to negative or vice versa) within the 5-second window before the shot.
-
-`time_since_meridian = (shot_frame − Frame) / FPS` gives us the time in seconds since the puck last crossed the meridian before the shot was taken. 
-`meridian_cross_dist = 89 − x_cross` is calculated as the distance from where the puck crossed the meridian to the goal line (89 feet), with negative values indicating crossings behind the net.
-
-
-TODO: GT Table
 
 ### Traffic
 

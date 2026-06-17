@@ -1,2 +1,1447 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"></html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.24">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Howard Baik">
+<meta name="dcterms.date" content="2026-06-17">
+<meta name="description" content="This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault’s PhD thesis.">
+
+<title>Feature-Based Expected Goals (xG) – Pass The Puck</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dc55a5b9e770e841cd82e46aadbfb9b0.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-26827f95213357c060b998e0666f8ebe.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>
+.quarto-title .description { display: none; }
+</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed fullcontent quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="../../index.html" class="navbar-brand navbar-brand-logo">
+    </a>
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Pass The Puck</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/howardbaik/pass-the-puck"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Feature-Based Expected Goals (xG)</h1>
+                  <div>
+        <div class="description">
+          This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault’s PhD thesis.
+        </div>
+      </div>
+                </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Howard Baik </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">June 17, 2026</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content">
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of <a href="https://www.linkedin.com/in/jonathan-arsenault-a0b414114/">Jonathan Arsenault</a>’s <a href="https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f">PhD thesis</a>. As the thesis puts it, “xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal.” Here, those features come from event and tracking data and capture shooter location, shooter motion, pressure from defenders, pre-shot puck movement, traffic in the shooting lane, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot’s probability of becoming a goal.</p>
+<p>We will use data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026">Big Data Cup 2026</a>, which spans 10 games and combines Stathletes-tracked event data with player tracking data generated from broadcast video.</p>
+<p>All code is written using Claude Opus 4.8 and verified by the author.</p>
+<section id="data-import" class="level3">
+<h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
+<p>We import the data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data">Big Data Cup 2026 GitHub repository</a> and tag each events and tracking data with a Game ID. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
+<div id="02e5ae18" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> great_tables <span class="im">import</span> GT</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> urllib.request, io</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert clock strings ("MM:SS" / "M:SS") to total seconds.</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># events.Clock uses zero-padded minutes ("09:30"); tracking "Game Clock" is unpadded ("9:30").</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Casting both to integer seconds makes them directly comparable for joins.</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> clock_to_seconds(col):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    parts <span class="op">=</span> pl.col(col).<span class="bu">str</span>.split(<span class="st">":"</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        parts.<span class="bu">list</span>.get(<span class="dv">0</span>).cast(pl.Int64) <span class="op">*</span> <span class="dv">60</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> parts.<span class="bu">list</span>.get(<span class="dv">1</span>).cast(pl.Int64)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Add the seconds column and slot it right after its source column.</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_seconds_after(df, src, new):</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> df.with_columns(clock_to_seconds(src).alias(new))</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    cols <span class="op">=</span> [c <span class="cf">for</span> c <span class="kw">in</span> df.columns <span class="cf">if</span> c <span class="op">!=</span> new]</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    cols.insert(df.get_column_index(src) <span class="op">+</span> <span class="dv">1</span>, new)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> df.select(cols)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Every game is read directly from the Big Data Cup 2026 release (no local download).</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Each row is tagged with a "Game" id (the filename stem, e.g. "2025-10-11.Team.A.@.Team.D"),</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="co"># identical for a game's Events and Tracking files. That key is required downstream: the</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="co"># shots&lt;-&gt;tracking joins match on Period + Frame, but Frame is only a per-game counter, so</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="co"># without "Game" they would cross-match rows between different games.</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>_RELEASE_API <span class="op">=</span> <span class="st">"https://api.github.com/repos/bigdatacup/Big-Data-Cup-2026/releases/tags/Data"</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>_assets <span class="op">=</span> {a[<span class="st">"name"</span>]: a[<span class="st">"browser_download_url"</span>]</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>           <span class="cf">for</span> a <span class="kw">in</span> json.load(urllib.request.urlopen(_RELEASE_API))[<span class="st">"assets"</span>]}</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _read_url(url, <span class="op">**</span>kwargs):</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pl.read_csv(io.BytesIO(urllib.request.urlopen(url).read()), <span class="op">**</span>kwargs)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Events: one file per game.</span></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>event_frames <span class="op">=</span> []</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, url <span class="kw">in</span> _assets.items():</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> name.endswith(<span class="st">".Events.csv"</span>):</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    game <span class="op">=</span> name[: <span class="op">-</span><span class="bu">len</span>(<span class="st">".Events.csv"</span>)]</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> _read_url(url, schema_overrides<span class="op">=</span>{<span class="st">"Player_Id"</span>: pl.String, <span class="st">"Player_Id_2"</span>: pl.String})</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> add_seconds_after(df, <span class="st">"Clock"</span>, <span class="st">"Clock_Seconds"</span>)</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> df.with_columns(pl.lit(game).alias(<span class="st">"Game"</span>))</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    event_frames.append(df)</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>events <span class="op">=</span> pl.concat(event_frames)</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a><span class="co"># Tracking: P1/P2/P3 (+ POT overtime). ".Tracking_P" excludes Shifts and camera_orientations.</span></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>track_frames <span class="op">=</span> []</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, url <span class="kw">in</span> _assets.items():</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">".Tracking_P"</span> <span class="kw">not</span> <span class="kw">in</span> name:</span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>    game <span class="op">=</span> name.split(<span class="st">".Tracking_"</span>)[<span class="dv">0</span>]</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> _read_url(url, schema_overrides<span class="op">=</span>{<span class="st">"Rink Location Z (Feet)"</span>: pl.Float64, <span class="st">"Period"</span>: pl.String}).drop(<span class="st">"Player Id"</span>)</span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Overtime tracking labels Period as "OT"; events use 4 for OT. Normalize to 4 (Int64)</span></span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>    <span class="co"># so the dtype is consistent across files and OT shots can join their tracking frames.</span></span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> df.with_columns(pl.col(<span class="st">"Period"</span>).replace(<span class="st">"OT"</span>, <span class="st">"4"</span>).cast(pl.Int64))</span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> add_seconds_after(df, <span class="st">"Game Clock"</span>, <span class="st">"Game_Clock_Seconds"</span>)</span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> df.with_columns(pl.lit(game).alias(<span class="st">"Game"</span>))</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>    track_frames.append(df)</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a><span class="co"># One table of every tracked player-frame across all games and periods.</span></span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>tracking <span class="op">=</span> pl.concat(track_frames)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><img src="events_data_table.png" class="img-fluid"></p>
+<p><img src="tracking_data_table.png" class="img-fluid"></p>
+</section>
+<section id="distribution-of-shot-types" class="level3">
+<h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
+<p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
+<p><img src="./shot_types_distribution.png" class="img-fluid"></p>
+<div id="d608e682" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>shot_types <span class="op">=</span> (</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    events.<span class="bu">filter</span>(pl.col(<span class="st">"Event"</span>).is_in([<span class="st">"Shot"</span>, <span class="st">"Goal"</span>]))</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"Detail_1"</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    .agg(pl.<span class="bu">len</span>().alias(<span class="st">"count"</span>))</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    .with_columns((pl.col(<span class="st">"count"</span>) <span class="op">/</span> pl.col(<span class="st">"count"</span>).<span class="bu">sum</span>()).alias(<span class="st">"pct"</span>))</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    .sort(<span class="st">"count"</span>, descending<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">6</span>))</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Create bar chart with percentages</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>ax.bar(shot_types[<span class="st">"Detail_1"</span>], shot_types[<span class="st">"pct"</span>] <span class="op">*</span> <span class="dv">100</span>, color<span class="op">=</span><span class="st">"#1f77b4"</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Customize the plot</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Shot Type"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Percentage (%)"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Distribution of Shot Types (Percentage)"</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Rotate x-axis labels for better readability</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">45</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Add percentage labels on top of bars</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, v <span class="kw">in</span> <span class="bu">enumerate</span>(shot_types[<span class="st">"pct"</span>]):</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    ax.text(i, v <span class="op">*</span> <span class="dv">100</span> <span class="op">+</span> <span class="dv">1</span>, <span class="ss">f"</span><span class="sc">{</span>v<span class="op">*</span><span class="dv">100</span><span class="sc">:.1f}</span><span class="ss">%"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"bottom"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p>The shot type distribution in our dataset is very similar to the thesis’s dataset. Table 2.1 from the thesis reveals that Wrist Shots (47.8%) and Snap Shots (25.5%) are the most common, followed by Slap Shots (15.6%) and Deflections (4.5%).</p>
+</section>
+<section id="distribution-of-shot-outcomes" class="level3">
+<h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
+<p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
+<div id="de5817a2" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>descriptions <span class="op">=</span> {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Saved"</span>: <span class="st">"The shot is on target and saved by the goaltender."</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Goal"</span>: <span class="st">"The shot is on target and not saved by the goaltender, resulting in a goal."</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Blocked"</span>: <span class="st">"The shot is blocked by a skater from the defending team."</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Missed"</span>: <span class="st">"The shot is not on target."</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>shot_outcomes <span class="op">=</span> (</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    events.<span class="bu">filter</span>(pl.col(<span class="st">"Event"</span>).is_in([<span class="st">"Shot"</span>, <span class="st">"Goal"</span>]))</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Event"</span>) <span class="op">==</span> <span class="st">"Goal"</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        .then(pl.lit(<span class="st">"Goal"</span>))</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        .when((pl.col(<span class="st">"Event"</span>) <span class="op">==</span> <span class="st">"Shot"</span>) <span class="op">&amp;</span> (pl.col(<span class="st">"Detail_2"</span>) <span class="op">==</span> <span class="st">"On Net"</span>))</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        .then(pl.lit(<span class="st">"Saved"</span>))</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        .when((pl.col(<span class="st">"Event"</span>) <span class="op">==</span> <span class="st">"Shot"</span>) <span class="op">&amp;</span> (pl.col(<span class="st">"Detail_2"</span>) <span class="op">==</span> <span class="st">"Blocked"</span>))</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        .then(pl.lit(<span class="st">"Blocked"</span>))</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        .when((pl.col(<span class="st">"Event"</span>) <span class="op">==</span> <span class="st">"Shot"</span>) <span class="op">&amp;</span> (pl.col(<span class="st">"Detail_2"</span>) <span class="op">==</span> <span class="st">"Missed"</span>))</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        .then(pl.lit(<span class="st">"Missed"</span>))</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"Outcome"</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"Outcome"</span>)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    .agg(pl.<span class="bu">len</span>().alias(<span class="st">"count"</span>))</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    .with_columns((pl.col(<span class="st">"count"</span>) <span class="op">/</span> pl.col(<span class="st">"count"</span>).<span class="bu">sum</span>()).alias(<span class="st">"pct"</span>))</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    .with_columns(pl.col(<span class="st">"Outcome"</span>).replace(descriptions).alias(<span class="st">"Description"</span>))</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    .select(<span class="st">"Outcome"</span>, <span class="st">"Description"</span>, <span class="st">"pct"</span>)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    .sort(<span class="st">"pct"</span>, descending<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    GT(shot_outcomes)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    .tab_header(title<span class="op">=</span><span class="st">"Distribution of shot outcomes in the dataset"</span>)</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    .cols_label(</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        Outcome<span class="op">=</span><span class="st">"Shot Outcome"</span>,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        Description<span class="op">=</span><span class="st">"Description"</span>,</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        pct<span class="op">=</span><span class="st">"</span><span class="sc">% o</span><span class="st">f Shots"</span>,</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    .fmt_percent(<span class="st">"pct"</span>, decimals<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    .cols_width({<span class="st">"Outcome"</span>: <span class="st">"130px"</span>, <span class="st">"Description"</span>: <span class="st">"420px"</span>, <span class="st">"pct"</span>: <span class="st">"110px"</span>})</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><img src="./shot_outcomes_table.png" class="img-fluid"></p>
+<p>Again, the shot outcome distribution in our dataset is very similar to the thesis’s dataset. Table 2.2 from the thesis shows that the Saved outcome is the most common (48.3%), followed by Blocked (26.0%), Missed (21.4%), and Goal (4.21%). It is perfectly normal for the Goal outcome to be the least common, as goals are rare in hockey.</p>
+</section>
+<section id="distribution-of-shot-location" class="level3">
+<h3 class="anchored" data-anchor-id="distribution-of-shot-location">Distribution of Shot Location</h3>
+<p>We look at the distribution of shot locations in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and visualize the distribution of the <code>X_Coordinate</code> and <code>Y_Coordinate</code> columns on a half-sized ice rink, along with the shot angle.</p>
+<p><br></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="goal_locations_ice_rink.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:55.0%"></p>
+</figure>
+</div>
+<p>There are 58 goals in our 10-game dataset and most of the goals are from the high-danger areas of the rink: in front of the goal and near the goal line. Low shot angles mean the shot was taken from the area in front of the goaltender, a high-danger area of the rink. High shot angles mean that the shot was taken from the area near the boards, a low-danger area of the rink.</p>
+</section>
+</section>
+<section id="feature-engineering" class="level2">
+<h2 class="anchored" data-anchor-id="feature-engineering">Feature Engineering</h2>
+<p>We extract features from the <em>events and </em>tracking* data for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.</p>
+<section id="shot-location" class="level3">
+<h3 class="anchored" data-anchor-id="shot-location">Shot Location</h3>
+<p>Section 2.4.1.1 of the thesis defines three shot-location variables: the shot angle, the shot distance, and the meridian distance.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="shot-location.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:40.0%"></p>
+</figure>
+</div>
+<ol type="1">
+<li>The shot angle <span class="math inline">\(\theta\)</span> in degrees is defined as:</li>
+</ol>
+<p><span class="math display">\[
+\theta =\frac{180}{\pi} \left| \text{atan2}(y, x - 89) \right|.
+\]</span></p>
+<ol start="2" type="1">
+<li><p>The meridian distance <span class="math inline">\(d_m\)</span> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
+<li><p>The shot distance <span class="math inline">\(d\)</span> is the distance between the shot location and the goal.</p></li>
+</ol>
+<div id="4130b255" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    events</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Event"</span>).is_in([<span class="st">"Shot"</span>, <span class="st">"Goal"</span>]))</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Normalize to right side</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"X_Coordinate"</span>) <span class="op">&lt;</span> <span class="dv">0</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        .then(<span class="op">-</span>pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        .otherwise(pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"X_Coordinate"</span>),</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"X_Coordinate"</span>) <span class="op">&lt;</span> <span class="dv">0</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        .then(<span class="op">-</span>pl.col(<span class="st">"Y_Coordinate"</span>))</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        .otherwise(pl.col(<span class="st">"Y_Coordinate"</span>))</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"Y_Coordinate"</span>),</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shot angle (degrees) and meridian distance</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        (</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            pl.arctan2(pl.col(<span class="st">"Y_Coordinate"</span>), <span class="dv">89</span> <span class="op">-</span> pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>            .<span class="bu">abs</span>()</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>            <span class="op">*</span> (<span class="dv">180</span> <span class="op">/</span> math.pi)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        ).alias(<span class="st">"Shot_Angle"</span>),</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"Y_Coordinate"</span>).<span class="bu">abs</span>().alias(<span class="st">"d_m"</span>),</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Distance via trigonometry: d = d_m / sin(θ), fallback to (89 - x) when Y = 0</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"d_m"</span>) <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        .then(<span class="dv">89</span> <span class="op">-</span> pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>        .otherwise(</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>            pl.col(<span class="st">"d_m"</span>) <span class="op">/</span> (pl.col(<span class="st">"Shot_Angle"</span>) <span class="op">*</span> math.pi <span class="op">/</span> <span class="dv">180</span>).sin()</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"d_trig"</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Euclidean distance as sanity check</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        ((<span class="dv">89</span> <span class="op">-</span> pl.col(<span class="st">"X_Coordinate"</span>)).<span class="bu">pow</span>(<span class="dv">2</span>) <span class="op">+</span> pl.col(<span class="st">"Y_Coordinate"</span>).<span class="bu">pow</span>(<span class="dv">2</span>))</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>        .sqrt()</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"d_euclidean"</span>),</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><img src="shot_location_table.png" class="img-fluid"></p>
+</section>
+<section id="shooter-motion" class="level3">
+<h3 class="anchored" data-anchor-id="shooter-motion">Shooter Motion</h3>
+<p>Section 2.4.1.2 of the thesis describes two additional features: shooter’s speed and direction of travel. For convenience, our model only uses shooter’s speed, which is the magnitude of the shooter’s velocity at the instant of their shot.</p>
+<p>There are a few parameters we set before the feature engineering process:</p>
+<ol type="1">
+<li><code>FPS = 30</code> is the tracking frame rate (frames per second). The tracking dataset contains the <code>Image ID</code> column, whose suffix is a frame counter that ticks ~30 times per game-clock second (e.g.&nbsp;<code>_066486</code> -&gt; <code>_066487</code> -&gt; <code>_066488</code>). On average, there are 30 frames per game-clock second, and we store this information in <code>FPS</code> to convert frames to seconds using this formula:</li>
+</ol>
+<p><span class="math display">\[
+\text{time (seconds)} = \frac{\text{frame count}}{\text{FPS}}
+\]</span></p>
+<p>  &nbsp; Later, we use this time interval to calculate speed:</p>
+<p><span class="math display">\[
+\text{speed (ft/s)} = \frac{\text{distance (ft)}}{\text{time (seconds)}}
+\]</span></p>
+<ol start="2" type="1">
+<li><code>SMOOTH_K = 3</code> is the window (in frames) used to estimate speed by central difference. Rather than measuring how far a player moved between two <em>adjacent</em> frames, which is noisy, we compare the player’s position <code>SMOOTH_K</code> frames ahead with their position <code>SMOOTH_K</code> frames behind, then divide by the time that elapsed between those two samples:</li>
+</ol>
+<p><span class="math display">\[
+\text{speed} \approx \frac{\sqrt{(x_{i+k} - x_{i-k})^2 + (y_{i+k} - y_{i-k})^2}}{(\text{frame}_{i+k} - \text{frame}_{i-k}) / \text{FPS}}, \quad k = \texttt{SMOOTH\_K}.
+\]</span></p>
+<p>  &nbsp; This method averages out per-frame jitter and gives a more stable speed estimate.</p>
+<ol start="3" type="1">
+<li><p><code>FT_PER_S_TO_MPH = 0.6818</code> is the conversion factor from feet per second (fps) to miles per hour (mph).</p></li>
+<li><p><code>MAX_SPEED_MPH = 30.0</code> is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch.</p></li>
+</ol>
+<p>To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the <code>Image Id</code> column, so that an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> gives frame <code>065468</code>. After sorting each player’s frames in chronological order, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “players”.</p>
+<div id="49df293f" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>FPS <span class="op">=</span> <span class="dv">30</span>                  </span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>SMOOTH_K <span class="op">=</span> <span class="dv">3</span>              </span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>FT_PER_S_TO_MPH <span class="op">=</span> <span class="fl">0.6818</span>  </span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>MAX_SPEED_MPH <span class="op">=</span> <span class="fl">30.0</span>      </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>MAX_SPEED_FPS <span class="op">=</span> MAX_SPEED_MPH <span class="op">/</span> FT_PER_S_TO_MPH</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>players <span class="op">=</span> (</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    tracking</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Player or Puck"</span>) <span class="op">==</span> <span class="st">"Player"</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Numeric frame index from the Image Id suffix, and jersey as a string for matching.</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"Image Id"</span>).<span class="bu">str</span>.split(<span class="st">"_"</span>).<span class="bu">list</span>.last().cast(pl.Int64).alias(<span class="st">"Frame"</span>),</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"Player Jersey Number"</span>).cast(pl.String).alias(<span class="st">"Jersey"</span>),</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Drop rows whose jersey couldn't be read: they'd all collapse into one bogus "null"</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># track, and differencing positions of *different* players invents huge fake speeds.</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Jersey"</span>).is_not_null())</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Order each player's frames in time so shift() walks consecutive samples.</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>, <span class="st">"Frame"</span>])</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Central difference over +/- SMOOTH_K frames, partitioned per player-period.</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Rink Location X (Feet)"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Rink Location X (Feet)"</span>).shift(SMOOTH_K))</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>            .over([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>]).alias(<span class="st">"dx"</span>),</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Rink Location Y (Feet)"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Rink Location Y (Feet)"</span>).shift(SMOOTH_K))</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>            .over([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>]).alias(<span class="st">"dy"</span>),</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Frame"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Frame"</span>).shift(SMOOTH_K))</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>            .over([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>]).alias(<span class="st">"dframe"</span>),</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>        <span class="co"># dt = frames / fps (seconds); speed = displacement / dt, in feet per second.</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"dx"</span>) <span class="op">**</span> <span class="dv">2</span> <span class="op">+</span> pl.col(<span class="st">"dy"</span>) <span class="op">**</span> <span class="dv">2</span>).sqrt() <span class="op">/</span> (pl.col(<span class="st">"dframe"</span>) <span class="op">/</span> FPS)).alias(<span class="st">"speed_fps"</span>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Null out physically impossible speeds (tracking ID-swaps / position jumps) so</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>        <span class="co"># they don't poison the per-shot pick or its fallback median.</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"speed_fps"</span>) <span class="op">&lt;=</span> MAX_SPEED_FPS).then(pl.col(<span class="st">"speed_fps"</span>)).otherwise(<span class="va">None</span>).alias(<span class="st">"speed_fps"</span>)</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"speed_fps"</span>) <span class="op">*</span> FT_PER_S_TO_MPH).alias(<span class="st">"speed_mph"</span>)</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p>Now that we have player speed, we filter the events data for shots and goals, calling this dataset “shots”. We left join “players” onto “shots” to create shooter tracking data, then keep only the shooter’s frames within one second of the shot. Among those, we pick the frame whose tracked position is closest (by Euclidean distance) to where the event records the shot — the moment the tracking best lines up with the recorded release point — and read off the shooter’s speed there. The result is the shots dataset with one shooter-speed column per shot, which we label with <code>shot_id</code>.</p>
+<div id="56357510" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>shots <span class="op">=</span> (</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    events.<span class="bu">filter</span>(pl.col(<span class="st">"Event"</span>).is_in([<span class="st">"Shot"</span>, <span class="st">"Goal"</span>]))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Team"</span>) <span class="op">==</span> pl.col(<span class="st">"Home_Team"</span>)).then(pl.lit(<span class="st">"Home"</span>))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.lit(<span class="st">"Away"</span>)).alias(<span class="st">"Track_Team"</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    .with_row_index(<span class="st">"shot_id"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Candidate shooter frames: same player, within the event second (+/-1s).</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>cand <span class="op">=</span> (</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    shots.join(</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        players.select([</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>, <span class="st">"Game_Clock_Seconds"</span>, <span class="st">"Frame"</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>            <span class="st">"Rink Location X (Feet)"</span>, <span class="st">"Rink Location Y (Feet)"</span>, <span class="st">"speed_fps"</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        ]),</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        left_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Track_Team"</span>, <span class="st">"Player_Id"</span>],</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        right_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>], how<span class="op">=</span><span class="st">"left"</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>((pl.col(<span class="st">"Game_Clock_Seconds"</span>) <span class="op">-</span> pl.col(<span class="st">"Clock_Seconds"</span>)).<span class="bu">abs</span>() <span class="op">&lt;=</span> <span class="dv">1</span>)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Rink Location X (Feet)"</span>).is_not_null()</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span> pl.col(<span class="st">"Rink Location Y (Feet)"</span>).is_not_null())</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"Rink Location X (Feet)"</span>) <span class="op">-</span> pl.col(<span class="st">"X_Coordinate"</span>)) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>         <span class="op">+</span> (pl.col(<span class="st">"Rink Location Y (Feet)"</span>) <span class="op">-</span> pl.col(<span class="st">"Y_Coordinate"</span>)) <span class="op">**</span> <span class="dv">2</span>).sqrt().alias(<span class="st">"d_direct"</span>),</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"Rink Location X (Feet)"</span>) <span class="op">+</span> pl.col(<span class="st">"X_Coordinate"</span>)) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>         <span class="op">+</span> (pl.col(<span class="st">"Rink Location Y (Feet)"</span>) <span class="op">+</span> pl.col(<span class="st">"Y_Coordinate"</span>)) <span class="op">**</span> <span class="dv">2</span>).sqrt().alias(<span class="st">"d_flip"</span>),</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>        pl.min_horizontal(<span class="st">"d_direct"</span>, <span class="st">"d_flip"</span>).alias(<span class="st">"match_dist"</span>),</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"d_flip"</span>) <span class="op">&lt;</span> pl.col(<span class="st">"d_direct"</span>)).alias(<span class="st">"used_flip"</span>),</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Release frame = the candidate closest to the release point (nulls_last so a real</span></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="co"># match is never beaten by a missing distance).</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>release <span class="op">=</span> (</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>    cand.sort(<span class="st">"match_dist"</span>, nulls_last<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>, maintain_order<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    .first()</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>, <span class="st">"match_dist"</span>, <span class="st">"used_flip"</span>, <span class="st">"speed_fps"</span>])</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Fallback: representative speed over the whole event-second window.</span></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>window_med <span class="op">=</span> cand.group_by(<span class="st">"shot_id"</span>).agg(</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    pl.col(<span class="st">"speed_fps"</span>).median().alias(<span class="st">"speed_fps_window_median"</span>),</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>    pl.<span class="bu">len</span>().alias(<span class="st">"n_candidates"</span>),</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a><span class="co"># A match is trusted when the closest frame is within ~10 ft and has a defined speed;</span></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a><span class="co"># otherwise fall back to the window median (flagged), or mark no tracking at all.</span></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>MAX_MATCH_DIST <span class="op">=</span> <span class="fl">10.0</span></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>shot_speeds <span class="op">=</span> (</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>    shots.join(release, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>    .join(window_med, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>        pl.when((pl.col(<span class="st">"match_dist"</span>) <span class="op">&lt;=</span> MAX_MATCH_DIST) <span class="op">&amp;</span> pl.col(<span class="st">"speed_fps"</span>).is_not_null())</span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>          .then(pl.col(<span class="st">"speed_fps"</span>))</span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.col(<span class="st">"speed_fps_window_median"</span>))</span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>          .alias(<span class="st">"shooter_speed_fps"</span>),</span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>        pl.when((pl.col(<span class="st">"match_dist"</span>) <span class="op">&lt;=</span> MAX_MATCH_DIST) <span class="op">&amp;</span> pl.col(<span class="st">"speed_fps"</span>).is_not_null())</span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>          .then(pl.lit(<span class="st">"matched"</span>))</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>          .when(pl.col(<span class="st">"speed_fps_window_median"</span>).is_not_null())</span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>          .then(pl.lit(<span class="st">"fallback_window_median"</span>))</span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.lit(<span class="st">"no_tracking"</span>))</span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a>          .alias(<span class="st">"match_quality"</span>),</span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>    .with_columns((pl.col(<span class="st">"shooter_speed_fps"</span>) <span class="op">*</span> <span class="fl">0.6818</span>).alias(<span class="st">"shooter_speed_mph"</span>))</span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Clock_Seconds"</span>], descending<span class="op">=</span>[<span class="va">False</span>, <span class="va">True</span>])</span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="shot_speeds_table.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+<section id="pressure" class="level3">
+<h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
+<p>In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
+<p>To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.</p>
+<div id="06468e5a" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defending skaters only: opposite tracking team, real jersey numbers, no goalies.</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>defenders <span class="op">=</span> (</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    players</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Jersey"</span>) <span class="op">!=</span> <span class="st">"Go"</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    .select([</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Frame"</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Rink Location X (Feet)"</span>, <span class="st">"Rink Location Y (Feet)"</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Per shot: the defending team, the release frame, and the shot location in tracking</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># coordinates (negated when the release match used the flip).</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>shot_frames <span class="op">=</span> (</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    shots</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    .join(release.select([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>, <span class="st">"used_flip"</span>]), on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Track_Team"</span>) <span class="op">==</span> <span class="st">"Home"</span>).then(pl.lit(<span class="st">"Away"</span>))</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.lit(<span class="st">"Home"</span>)).alias(<span class="st">"Def_Team"</span>),</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.col(<span class="st">"X_Coordinate"</span>)).alias(<span class="st">"Shot_X"</span>),</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"Y_Coordinate"</span>))</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.col(<span class="st">"Y_Coordinate"</span>)).alias(<span class="st">"Shot_Y"</span>),</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Def_Team"</span>, <span class="st">"Frame"</span>, <span class="st">"Shot_X"</span>, <span class="st">"Shot_Y"</span>])</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Join each shot to every defending skater in its release frame; measure distance.</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>pressure <span class="op">=</span> (</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    shot_frames</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    .join(</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        defenders,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        left_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Def_Team"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>        right_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"left"</span>,</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"Rink Location X (Feet)"</span>) <span class="op">-</span> pl.col(<span class="st">"Shot_X"</span>)) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>         <span class="op">+</span> (pl.col(<span class="st">"Rink Location Y (Feet)"</span>) <span class="op">-</span> pl.col(<span class="st">"Shot_Y"</span>)) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        .sqrt().alias(<span class="st">"def_dist"</span>)</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>, maintain_order<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>    .agg(</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"def_dist"</span>).sort(nulls_last<span class="op">=</span><span class="va">True</span>).alias(<span class="st">"def_dists"</span>),</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"def_dist"</span>).is_not_null().<span class="bu">sum</span>().alias(<span class="st">"n_defenders"</span>),</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"def_dists"</span>).<span class="bu">list</span>.get(<span class="dv">0</span>, null_on_oob<span class="op">=</span><span class="va">True</span>).alias(<span class="st">"closest_def_dist"</span>),</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"def_dists"</span>).<span class="bu">list</span>.get(<span class="dv">1</span>, null_on_oob<span class="op">=</span><span class="va">True</span>).alias(<span class="st">"second_closest_def_dist"</span>),</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>    .drop(<span class="st">"def_dists"</span>)</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a><span class="co"># Attach to the shots table for use as expected-goals model features.</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>shot_pressure <span class="op">=</span> shots.join(pressure, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>).select(</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Period"</span>, <span class="st">"Clock"</span>, <span class="st">"Team"</span>, <span class="st">"Player_Id"</span>, <span class="st">"Event"</span>, <span class="st">"Detail_1"</span>,</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>    <span class="st">"n_defenders"</span>, <span class="st">"closest_def_dist"</span>, <span class="st">"second_closest_def_dist"</span>,</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="pressure_table.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+<section id="pre-shot-movement" class="level3">
+<h3 class="anchored" data-anchor-id="pre-shot-movement">Pre-Shot Movement</h3>
+<p>Section 2.4.1.4 of the thesis discusses pre-shot movement: how the puck moved in the seconds leading up to the shot. It is a key predictor because lateral puck movement forces the goaltender to move side to side, which can leave them out of position when the shot is released.</p>
+<p>This section focuses on the meridian line, which is visualized below:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="rink_coords_meridian.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+<p>Pre-shot movement features are focused on lateral puck movement (east-west):</p>
+<ol type="1">
+<li>Time since the puck last crossed the meridian: Seconds since the puck last crossed the meridian.</li>
+<li>Location where the puck crossed the meridian: Measured as the distance to the goal line</li>
+<li>Average puck speed: Average puck speed in the 1-second before the shot.</li>
+</ol>
+<p>Features 1 and 2 are only defined when the crossing happened within 5-seconds before the shot.</p>
+<p>To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “puck”.</p>
+<p>Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the “window” dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck’s y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.</p>
+<p>To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.</p>
+<div id="dd1fc808" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># only drop physically impossible jumps (tracking glitches) above ~110 mph.</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>MAX_PUCK_SPEED_MPH <span class="op">=</span> <span class="fl">110.0</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>MAX_PUCK_SPEED_FPS <span class="op">=</span> MAX_PUCK_SPEED_MPH <span class="op">/</span> FT_PER_S_TO_MPH</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>puck <span class="op">=</span> (</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    tracking</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Player or Puck"</span>) <span class="op">==</span> <span class="st">"Puck"</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Rink Location X (Feet)"</span>).is_not_null())</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"Image Id"</span>).<span class="bu">str</span>.split(<span class="st">"_"</span>).<span class="bu">list</span>.last().cast(pl.Int64).alias(<span class="st">"Frame"</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>])</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Rink Location X (Feet)"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Rink Location X (Feet)"</span>).shift(SMOOTH_K)).over([<span class="st">"Game"</span>, <span class="st">"Period"</span>]).alias(<span class="st">"dx"</span>),</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Rink Location Y (Feet)"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Rink Location Y (Feet)"</span>).shift(SMOOTH_K)).over([<span class="st">"Game"</span>, <span class="st">"Period"</span>]).alias(<span class="st">"dy"</span>),</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Frame"</span>).shift(<span class="op">-</span>SMOOTH_K) <span class="op">-</span> pl.col(<span class="st">"Frame"</span>).shift(SMOOTH_K)).over([<span class="st">"Game"</span>, <span class="st">"Period"</span>]).alias(<span class="st">"dframe"</span>),</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"dx"</span>) <span class="op">**</span> <span class="dv">2</span> <span class="op">+</span> pl.col(<span class="st">"dy"</span>) <span class="op">**</span> <span class="dv">2</span>).sqrt() <span class="op">/</span> (pl.col(<span class="st">"dframe"</span>) <span class="op">/</span> FPS)).alias(<span class="st">"puck_speed_fps"</span>)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"puck_speed_fps"</span>) <span class="op">&lt;=</span> MAX_PUCK_SPEED_FPS).then(pl.col(<span class="st">"puck_speed_fps"</span>)).otherwise(<span class="va">None</span>).alias(<span class="st">"puck_speed_fps"</span>)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>, <span class="st">"Rink Location X (Feet)"</span>, <span class="st">"Rink Location Y (Feet)"</span>, <span class="st">"puck_speed_fps"</span>])</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    .rename({<span class="st">"Rink Location X (Feet)"</span>: <span class="st">"puck_x"</span>, <span class="st">"Rink Location Y (Feet)"</span>: <span class="st">"puck_y"</span>})</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-shot orientation: the shot location in tracking coords (negated when the release</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="co"># match used the flip) tells us which goal line the team attacks (+89 if X &gt; 0).</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>shot_orient <span class="op">=</span> (</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>    shots.join(release.select([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>, <span class="st">"used_flip"</span>]), on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"X_Coordinate"</span>)).otherwise(pl.col(<span class="st">"X_Coordinate"</span>)).alias(<span class="st">"Shot_X_track"</span>)</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    .with_columns((pl.col(<span class="st">"Shot_X_track"</span>) <span class="op">&gt;</span> <span class="dv">0</span>).alias(<span class="st">"attack_right"</span>))</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>, <span class="st">"attack_right"</span>])</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>    .rename({<span class="st">"Frame"</span>: <span class="st">"shot_frame"</span>})</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Puck samples in the same period within 5 s (150 frames) before each shot, with</span></span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a><span class="co"># coordinates normalized to attack-right. (The meridian sign-change is invariant to the</span></span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a><span class="co"># flip; normalizing X only matters for the goal-line distance.)</span></span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>window <span class="op">=</span> (</span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>    shot_orient.join(puck, on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>], how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>((pl.col(<span class="st">"shot_frame"</span>) <span class="op">-</span> pl.col(<span class="st">"Frame"</span>)).is_between(<span class="dv">0</span>, <span class="dv">5</span> <span class="op">*</span> FPS))</span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"attack_right"</span>)).then(pl.col(<span class="st">"puck_x"</span>)).otherwise(<span class="op">-</span>pl.col(<span class="st">"puck_x"</span>)).alias(<span class="st">"px"</span>),</span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"attack_right"</span>)).then(pl.col(<span class="st">"puck_y"</span>)).otherwise(<span class="op">-</span>pl.col(<span class="st">"puck_y"</span>)).alias(<span class="st">"py"</span>),</span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>])</span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a><span class="co"># Feature 3: average puck speed over the 1 s (30 frames) before the shot.</span></span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>avg_speed <span class="op">=</span> (</span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>    window.<span class="bu">filter</span>((pl.col(<span class="st">"shot_frame"</span>) <span class="op">-</span> pl.col(<span class="st">"Frame"</span>)).is_between(<span class="dv">0</span>, <span class="dv">1</span> <span class="op">*</span> FPS))</span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>)</span>
+<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>    .agg(pl.col(<span class="st">"puck_speed_fps"</span>).mean().alias(<span class="st">"avg_puck_speed_fps"</span>))</span>
+<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>    .with_columns((pl.col(<span class="st">"avg_puck_speed_fps"</span>) <span class="op">*</span> FT_PER_S_TO_MPH).alias(<span class="st">"avg_puck_speed_mph"</span>))</span>
+<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a><span class="co"># Features 1 &amp; 2: the most recent meridian crossing within the 5 s window. A crossing is</span></span>
+<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a><span class="co"># a sign change in py between consecutive frames; we linearly interpolate the X where</span></span>
+<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a><span class="co"># py = 0, then keep the latest crossing (largest Frame) before the shot.</span></span>
+<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>crossings <span class="op">=</span> (</span>
+<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a>    window.with_columns(</span>
+<span id="cb8-67"><a href="#cb8-67" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"px"</span>).shift(<span class="dv">1</span>).over(<span class="st">"shot_id"</span>).alias(<span class="st">"px_prev"</span>),</span>
+<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"py"</span>).shift(<span class="dv">1</span>).over(<span class="st">"shot_id"</span>).alias(<span class="st">"py_prev"</span>),</span>
+<span id="cb8-69"><a href="#cb8-69" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-70"><a href="#cb8-70" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"py_prev"</span>).is_not_null() <span class="op">&amp;</span> (pl.col(<span class="st">"py_prev"</span>) <span class="op">*</span> pl.col(<span class="st">"py"</span>) <span class="op">&lt;</span> <span class="dv">0</span>))</span>
+<span id="cb8-71"><a href="#cb8-71" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-72"><a href="#cb8-72" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"px_prev"</span>) <span class="op">+</span> (pl.col(<span class="st">"px"</span>) <span class="op">-</span> pl.col(<span class="st">"px_prev"</span>)) <span class="op">*</span> (<span class="dv">0</span> <span class="op">-</span> pl.col(<span class="st">"py_prev"</span>)) <span class="op">/</span> (pl.col(<span class="st">"py"</span>) <span class="op">-</span> pl.col(<span class="st">"py_prev"</span>))).alias(<span class="st">"x_cross"</span>)</span>
+<span id="cb8-73"><a href="#cb8-73" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-74"><a href="#cb8-74" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>])</span>
+<span id="cb8-75"><a href="#cb8-75" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>, maintain_order<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb8-76"><a href="#cb8-76" aria-hidden="true" tabindex="-1"></a>    .last()</span>
+<span id="cb8-77"><a href="#cb8-77" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb8-78"><a href="#cb8-78" aria-hidden="true" tabindex="-1"></a>        ((pl.col(<span class="st">"shot_frame"</span>) <span class="op">-</span> pl.col(<span class="st">"Frame"</span>)) <span class="op">/</span> FPS).alias(<span class="st">"time_since_meridian"</span>),</span>
+<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a>        (<span class="dv">89</span> <span class="op">-</span> pl.col(<span class="st">"x_cross"</span>)).alias(<span class="st">"meridian_cross_dist"</span>),  <span class="co"># negative if crossed behind the net</span></span>
+<span id="cb8-80"><a href="#cb8-80" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-81"><a href="#cb8-81" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"time_since_meridian"</span>, <span class="st">"meridian_cross_dist"</span>])</span>
+<span id="cb8-82"><a href="#cb8-82" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-83"><a href="#cb8-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-84"><a href="#cb8-84" aria-hidden="true" tabindex="-1"></a><span class="co"># Attach to the shots table; nulls mark shots with no meridian crossing in the prior 5 s.</span></span>
+<span id="cb8-85"><a href="#cb8-85" aria-hidden="true" tabindex="-1"></a>pre_shot_movement <span class="op">=</span> (</span>
+<span id="cb8-86"><a href="#cb8-86" aria-hidden="true" tabindex="-1"></a>    shots.join(crossings, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb8-87"><a href="#cb8-87" aria-hidden="true" tabindex="-1"></a>    .join(avg_speed, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb8-88"><a href="#cb8-88" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"Period"</span>, <span class="st">"Clock_Seconds"</span>], descending<span class="op">=</span>[<span class="va">False</span>, <span class="va">True</span>])</span>
+<span id="cb8-89"><a href="#cb8-89" aria-hidden="true" tabindex="-1"></a>    .select(</span>
+<span id="cb8-90"><a href="#cb8-90" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Period"</span>, <span class="st">"Clock"</span>, <span class="st">"Team"</span>, <span class="st">"Player_Id"</span>, <span class="st">"Event"</span>, <span class="st">"Detail_1"</span>,</span>
+<span id="cb8-91"><a href="#cb8-91" aria-hidden="true" tabindex="-1"></a>        <span class="st">"time_since_meridian"</span>, <span class="st">"meridian_cross_dist"</span>, <span class="st">"avg_puck_speed_fps"</span>, <span class="st">"avg_puck_speed_mph"</span>,</span>
+<span id="cb8-92"><a href="#cb8-92" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><img src="pre_shot_movement_table.png" class="img-fluid"></p>
+</section>
+<section id="traffic" class="level3">
+<h3 class="anchored" data-anchor-id="traffic">Traffic</h3>
+<p>Section 2.4.1.5 of the thesis models traffic with goal-face occlusion. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the “shadow” that skater casts onto the net from the shooter’s viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="occlusion_density.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:55.0%"></p>
+</figure>
+</div>
+<p>To calculate occlusion, we take the player tracking data with goaltenders removed and left-join it onto the shots dataset, pairing each shot with every skater on the ice at its release frame, then drop the shooter row. For each remaining skater, we use the linear interpolation equation below to find where the line from the shooter through that skater crosses the goal line, i.e.&nbsp;its y-intercept on the goal line.</p>
+<p><span class="math display">\[
+y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac{\text{GoalX} - \text{ShotX}}{\text{SkaterX} - \text{ShotX}}
+\]</span></p>
+<p>Then, we find the total occlusion density between the two goal posts using the formula below to compute the probability mass of a normal bell curve:</p>
+<p><span class="math display">\[
+\text{Occlusion Density} = \Phi\left(\frac{\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right) - \Phi\left(\frac{-\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right)
+\]</span></p>
+<div id="f4635c71" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>SIGMA <span class="op">=</span> <span class="fl">1.5</span>  <span class="co"># Gaussian standard deviation (feet)</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>GOAL_HALF <span class="op">=</span> <span class="fl">3.0</span>  <span class="co"># half-width of goal face (feet)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _normal_cdf_batched(x: np.ndarray) <span class="op">-&gt;</span> np.ndarray:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Vectorised normal CDF using math.erf identity: Φ(z) = 0.5*(1+erf(z/√2))."""</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">0.5</span> <span class="op">*</span> (<span class="fl">1.0</span> <span class="op">+</span> np.vectorize(math.erf)(x <span class="op">/</span> math.sqrt(<span class="dv">2</span>)))</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Per-shot info in tracking coordinates (reuses release match) ---</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>shot_info <span class="op">=</span> (</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    shots.join(release.select([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>, <span class="st">"used_flip"</span>]), on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Shot location in tracking coords</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"X_Coordinate"</span>)).otherwise(pl.col(<span class="st">"X_Coordinate"</span>)).alias(<span class="st">"Shot_X"</span>),</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"Y_Coordinate"</span>)).otherwise(pl.col(<span class="st">"Y_Coordinate"</span>)).alias(<span class="st">"Shot_Y"</span>),</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Goal line: +89 if attacking right, −89 if attacking left</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Shot_X"</span>) <span class="op">&gt;</span> <span class="dv">0</span>).then(pl.lit(<span class="fl">89.0</span>)).otherwise(pl.lit(<span class="op">-</span><span class="fl">89.0</span>)).alias(<span class="st">"goal_x"</span>),</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>, <span class="st">"Track_Team"</span>, <span class="st">"Player_Id"</span>, <span class="st">"Shot_X"</span>, <span class="st">"Shot_Y"</span>, <span class="st">"goal_x"</span>])</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="co"># --- All non-goalie skaters at each shot's release frame ---</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>skaters_at_frame <span class="op">=</span> (</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    players</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Jersey"</span>) <span class="op">!=</span> <span class="st">"Go"</span>)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Jersey"</span>, <span class="st">"Frame"</span>,</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>             <span class="st">"Rink Location X (Feet)"</span>, <span class="st">"Rink Location Y (Feet)"</span>])</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    .rename({<span class="st">"Rink Location X (Feet)"</span>: <span class="st">"sk_x"</span>, <span class="st">"Rink Location Y (Feet)"</span>: <span class="st">"sk_y"</span>})</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Join each shot with every skater present at the release frame, then drop the shooter.</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>occlusion_pairs <span class="op">=</span> (</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    shot_info.join(</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        skaters_at_frame,</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        left_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>        right_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"left"</span>,</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Exclude the shooter (same team in tracking namespace + same jersey)</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>        <span class="op">~</span>((pl.col(<span class="st">"Track_Team"</span>) <span class="op">==</span> pl.col(<span class="st">"Team"</span>)) <span class="op">&amp;</span> (pl.col(<span class="st">"Player_Id"</span>) <span class="op">==</span> pl.col(<span class="st">"Jersey"</span>)))</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"sk_x"</span>).is_not_null() <span class="op">&amp;</span> pl.col(<span class="st">"sk_y"</span>).is_not_null())</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Compute y-intercept on the goal line</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Shot_Y"</span>)</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>         <span class="op">+</span> (pl.col(<span class="st">"sk_y"</span>) <span class="op">-</span> pl.col(<span class="st">"Shot_Y"</span>))</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>           <span class="op">*</span> (pl.col(<span class="st">"goal_x"</span>) <span class="op">-</span> pl.col(<span class="st">"Shot_X"</span>))</span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>           <span class="op">/</span> (pl.col(<span class="st">"sk_x"</span>) <span class="op">-</span> pl.col(<span class="st">"Shot_X"</span>))</span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>        ).alias(<span class="st">"y_goal"</span>)</span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Drop degenerate cases: skater at same x as shooter, or intercept is undefined</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"y_goal"</span>).is_not_null() <span class="op">&amp;</span> pl.col(<span class="st">"y_goal"</span>).is_finite())</span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute Gaussian contribution per skater via map_batches</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>occlusion_pairs <span class="op">=</span> occlusion_pairs.with_columns(</span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>    pl.struct([<span class="st">"y_goal"</span>]).map_batches(</span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a>        <span class="kw">lambda</span> s: pl.Series(</span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>            _normal_cdf_batched((GOAL_HALF <span class="op">-</span> s.struct.field(<span class="st">"y_goal"</span>).to_numpy()) <span class="op">/</span> SIGMA)</span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>            <span class="op">-</span> _normal_cdf_batched((<span class="op">-</span>GOAL_HALF <span class="op">-</span> s.struct.field(<span class="st">"y_goal"</span>).to_numpy()) <span class="op">/</span> SIGMA)</span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a>        return_dtype<span class="op">=</span>pl.Float64,</span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a>    ).alias(<span class="st">"occlusion_contribution"</span>)</span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a><span class="co"># Sum per shot</span></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a>total_occlusion <span class="op">=</span> (</span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>    occlusion_pairs</span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>, maintain_order<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>    .agg(</span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>        (<span class="fl">1.0</span> <span class="op">-</span> (<span class="fl">1.0</span> <span class="op">-</span> pl.col(<span class="st">"occlusion_contribution"</span>)).product())</span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>        .alias(<span class="st">"total_occlusion"</span>)</span>
+<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a>shot_occlusion <span class="op">=</span> (</span>
+<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a>    shots.join(total_occlusion, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a>    .select(</span>
+<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Period"</span>, <span class="st">"Clock"</span>, <span class="st">"Team"</span>, <span class="st">"Player_Id"</span>, <span class="st">"Event"</span>, <span class="st">"Detail_1"</span>,</span>
+<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>        <span class="st">"X_Coordinate"</span>, <span class="st">"Y_Coordinate"</span>, <span class="st">"total_occlusion"</span>,</span>
+<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="shot_occlusion_table.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+<section id="goaltender-positioning" class="level3">
+<h3 class="anchored" data-anchor-id="goaltender-positioning">Goaltender Positioning</h3>
+<p>Section 2.4.1.6 of the thesis deals with features related to goaltender positioning, goaltender angle and depth relative to the goal center. Figure 2.9 illustrates goaltender angle <span class="math inline">\(\zeta\)</span> and depth <span class="math inline">\(d_g\)</span>:</p>
+<p><img src="goaltender-positioning.png" class="img-fluid"></p>
+<p>The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.</p>
+<p>To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.</p>
+<div id="523a43c2" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per shot: defending team, release frame, shot location in tracking coords, goal center.</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>shot_goalie_ctx <span class="op">=</span> (</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    shots.join(release.select([<span class="st">"shot_id"</span>, <span class="st">"Frame"</span>, <span class="st">"used_flip"</span>]), on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Track_Team"</span>) <span class="op">==</span> <span class="st">"Home"</span>).then(pl.lit(<span class="st">"Away"</span>))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.lit(<span class="st">"Home"</span>)).alias(<span class="st">"Def_Team"</span>),</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"X_Coordinate"</span>))</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.col(<span class="st">"X_Coordinate"</span>)).alias(<span class="st">"Shot_X"</span>),</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"used_flip"</span>)).then(<span class="op">-</span>pl.col(<span class="st">"Y_Coordinate"</span>))</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>          .otherwise(pl.col(<span class="st">"Y_Coordinate"</span>)).alias(<span class="st">"Shot_Y"</span>),</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Goal line: +89 if attacking right, −89 if attacking left.</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        pl.when(pl.col(<span class="st">"Shot_X"</span>) <span class="op">&gt;</span> <span class="dv">0</span>).then(pl.lit(<span class="fl">89.0</span>)).otherwise(pl.lit(<span class="op">-</span><span class="fl">89.0</span>)).alias(<span class="st">"goal_x"</span>),</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Def_Team"</span>, <span class="st">"Frame"</span>, <span class="st">"Shot_X"</span>, <span class="st">"Shot_Y"</span>, <span class="st">"goal_x"</span>])</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Defending goaltender's tracked position at each shot's release frame.</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>goalies <span class="op">=</span> (</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    players</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">filter</span>(pl.col(<span class="st">"Jersey"</span>) <span class="op">==</span> <span class="st">"Go"</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Frame"</span>,</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>             <span class="st">"Rink Location X (Feet)"</span>, <span class="st">"Rink Location Y (Feet)"</span>])</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>    .rename({<span class="st">"Rink Location X (Feet)"</span>: <span class="st">"goalie_x"</span>, <span class="st">"Rink Location Y (Feet)"</span>: <span class="st">"goalie_y"</span>})</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>goaltender_positioning <span class="op">=</span> (</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    shot_goalie_ctx</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    .join(</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>        goalies,</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        left_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Def_Team"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>        right_on<span class="op">=</span>[<span class="st">"Game"</span>, <span class="st">"Period"</span>, <span class="st">"Team"</span>, <span class="st">"Frame"</span>],</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"left"</span>,</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>    <span class="co"># One goalie per team-frame is expected; guard against duplicate tracks.</span></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"shot_id"</span>, maintain_order<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>    .first()</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Vectors from the goal center to the shooter and to the goalie.</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"Shot_X"</span>) <span class="op">-</span> pl.col(<span class="st">"goal_x"</span>)).alias(<span class="st">"s_x"</span>),</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"Shot_Y"</span>).alias(<span class="st">"s_y"</span>),</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"goalie_x"</span>) <span class="op">-</span> pl.col(<span class="st">"goal_x"</span>)).alias(<span class="st">"g_x"</span>),</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"goalie_y"</span>).alias(<span class="st">"g_y"</span>),</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"s_x"</span>) <span class="op">**</span> <span class="dv">2</span> <span class="op">+</span> pl.col(<span class="st">"s_y"</span>) <span class="op">**</span> <span class="dv">2</span>).sqrt().alias(<span class="st">"s_mag"</span>),</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"g_x"</span>) <span class="op">**</span> <span class="dv">2</span> <span class="op">+</span> pl.col(<span class="st">"g_y"</span>) <span class="op">**</span> <span class="dv">2</span>).sqrt().alias(<span class="st">"g_mag"</span>),</span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>        (pl.col(<span class="st">"s_x"</span>) <span class="op">*</span> pl.col(<span class="st">"g_x"</span>) <span class="op">+</span> pl.col(<span class="st">"s_y"</span>) <span class="op">*</span> pl.col(<span class="st">"g_y"</span>)).alias(<span class="st">"dot"</span>),</span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a>    .with_columns(</span>
+<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>        <span class="co"># d_g: distance from the goaltender to the goal center.</span></span>
+<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>        pl.col(<span class="st">"g_mag"</span>).alias(<span class="st">"goaltender_depth"</span>),</span>
+<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ζ (degrees): undefined when shooter or goalie sits exactly at the goal center.</span></span>
+<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>        pl.when((pl.col(<span class="st">"s_mag"</span>) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="op">&amp;</span> (pl.col(<span class="st">"g_mag"</span>) <span class="op">&gt;</span> <span class="dv">0</span>))</span>
+<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a>          .then(</span>
+<span id="cb10-57"><a href="#cb10-57" aria-hidden="true" tabindex="-1"></a>              (pl.col(<span class="st">"dot"</span>) <span class="op">/</span> (pl.col(<span class="st">"s_mag"</span>) <span class="op">*</span> pl.col(<span class="st">"g_mag"</span>)))</span>
+<span id="cb10-58"><a href="#cb10-58" aria-hidden="true" tabindex="-1"></a>              .clip(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>).arccos() <span class="op">*</span> (<span class="dv">180</span> <span class="op">/</span> math.pi)</span>
+<span id="cb10-59"><a href="#cb10-59" aria-hidden="true" tabindex="-1"></a>          )</span>
+<span id="cb10-60"><a href="#cb10-60" aria-hidden="true" tabindex="-1"></a>          .otherwise(<span class="va">None</span>)</span>
+<span id="cb10-61"><a href="#cb10-61" aria-hidden="true" tabindex="-1"></a>          .alias(<span class="st">"angle_discrepancy"</span>),</span>
+<span id="cb10-62"><a href="#cb10-62" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-63"><a href="#cb10-63" aria-hidden="true" tabindex="-1"></a>    .select([<span class="st">"shot_id"</span>, <span class="st">"angle_discrepancy"</span>, <span class="st">"goaltender_depth"</span>])</span>
+<span id="cb10-64"><a href="#cb10-64" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-65"><a href="#cb10-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-66"><a href="#cb10-66" aria-hidden="true" tabindex="-1"></a><span class="co"># Attach to the shots table for use as expected-goals model features.</span></span>
+<span id="cb10-67"><a href="#cb10-67" aria-hidden="true" tabindex="-1"></a>shot_goaltender <span class="op">=</span> (</span>
+<span id="cb10-68"><a href="#cb10-68" aria-hidden="true" tabindex="-1"></a>    shots.join(goaltender_positioning, on<span class="op">=</span><span class="st">"shot_id"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb10-69"><a href="#cb10-69" aria-hidden="true" tabindex="-1"></a>    .sort([<span class="st">"Period"</span>, <span class="st">"Clock_Seconds"</span>], descending<span class="op">=</span>[<span class="va">False</span>, <span class="va">True</span>])</span>
+<span id="cb10-70"><a href="#cb10-70" aria-hidden="true" tabindex="-1"></a>    .select(</span>
+<span id="cb10-71"><a href="#cb10-71" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Period"</span>, <span class="st">"Clock"</span>, <span class="st">"Team"</span>, <span class="st">"Player_Id"</span>, <span class="st">"Event"</span>, <span class="st">"Detail_1"</span>,</span>
+<span id="cb10-72"><a href="#cb10-72" aria-hidden="true" tabindex="-1"></a>        <span class="st">"angle_discrepancy"</span>, <span class="st">"goaltender_depth"</span>,</span>
+<span id="cb10-73"><a href="#cb10-73" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-74"><a href="#cb10-74" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="shot_goaltender_table.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+</section>
+<section id="feature-based-expected-goals-xg-model" class="level2">
+<h2 class="anchored" data-anchor-id="feature-based-expected-goals-xg-model">Feature-Based Expected Goals (xG) Model</h2>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/your-website-url\.example\.com");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

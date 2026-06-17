@@ -1,6 +1,8 @@
 [
   {
     "listing": "/index.html",
-    "items": []
+    "items": [
+      "/posts/feature-based-xg/index.html"
+    ]
   }
 ]

@@ -10,7 +10,6 @@ format:
         .quarto-title .description { display: none; }
         </style>
 link-external-newwindow: true
-draft: true
 eval: false
 author: "Howard Baik"
 date: "2026-06-17"
@@ -744,12 +743,6 @@ Section 2.4.1.6 of the thesis deals with features related to goaltender position
 
 The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.
 
-In this post, goaltender angle is:
-$$
-\zeta = \arccos\left(\frac{s \cdot g}{|s||g|}\right)\times\frac{180}{\pi}
-$$
-    
-
 To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.
 
 
@@ -834,14 +827,12 @@ shot_goaltender = (
 
 
 
-
-
 ## Feature-Based Expected Goals (xG) Model
 
 
 
 
 
-### Extra Stuff
 
-So (shot_frame - Frame) / FPS is "how long ago, in seconds, did the puck last cross the center line before this shot was taken." It's the same frames→seconds conversion used elsewhere in the notebook (e.g. the dframe / FPS term in the speed formula); 
+## Conclusion
+

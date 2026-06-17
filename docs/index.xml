@@ -29,7 +29,7 @@
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data">Big Data Cup 2026 GitHub repository</a> and tag each events and tracking data with a Game ID. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="6db64484" class="cell" data-execution_count="1">
+<div id="c2f15b51" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="im" style="color: #00769E;
@@ -330,7 +330,7 @@ font-style: inherit;">=</span> pl.concat(track_frames)</span></code></pre></div>
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_types_distribution.png" class="img-fluid"></p>
-<div id="dfd102cc" class="cell" data-execution_count="2">
+<div id="7ed8a7d4" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">shot_types <span class="op" style="color: #5E5E5E;
@@ -522,7 +522,7 @@ font-style: inherit;">8</span>)</span>
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="44e4ce5a" class="cell" data-execution_count="3">
+<div id="847dd5fb" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">descriptions <span class="op" style="color: #5E5E5E;
@@ -756,7 +756,7 @@ font-style: inherit;">"110px"</span>})</span>
 <li><p>The meridian distance <img src="https://latex.codecogs.com/png.latex?d_m"> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
 <li><p>The shot distance <img src="https://latex.codecogs.com/png.latex?d"> is the distance between the shot location and the goal.</p></li>
 </ol>
-<div id="2b3c55b5" class="cell" data-execution_count="4">
+<div id="e4acf576" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">(</span>
@@ -935,7 +935,7 @@ font-style: inherit;">"d_euclidean"</span>),</span>
 <li><p><code>MAX_SPEED_MPH = 30.0</code> is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch.</p></li>
 </ol>
 <p>To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the <code>Image Id</code> column, so that an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> gives frame <code>065468</code>. After sorting each player’s frames in chronological order, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “players”.</p>
-<div id="8c0e71a4" class="cell" data-execution_count="5">
+<div id="7cf0c55e" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">FPS <span class="op" style="color: #5E5E5E;
@@ -1148,7 +1148,7 @@ font-style: inherit;">"speed_mph"</span>)</span>
 </details>
 </div>
 <p>Now that we have player speed, we filter the events data for shots and goals, calling this dataset “shots”. We left join “players” onto “shots” to create shooter tracking data, then keep only the shooter’s frames within one second of the shot. Among those, we pick the frame whose tracked position is closest (by Euclidean distance) to where the event records the shot — the moment the tracking best lines up with the recorded release point — and read off the shooter’s speed there. The result is the shots dataset with one shooter-speed column per shot, which we label with <code>shot_id</code>.</p>
-<div id="52598581" class="cell" data-execution_count="6">
+<div id="9b5bb6f7" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">shots <span class="op" style="color: #5E5E5E;
@@ -1507,7 +1507,7 @@ font-style: inherit;">True</span>])</span>
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.</p>
-<div id="06de403c" class="cell" data-execution_count="7">
+<div id="ca2d94f4" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="co" style="color: #5E5E5E;
@@ -1812,7 +1812,7 @@ font-style: inherit;">"second_closest_def_dist"</span>,</span>
 <p>To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “puck”.</p>
 <p>Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the “window” dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck’s y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.</p>
 <p>To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.</p>
-<div id="54a4570a" class="cell" data-execution_count="8">
+<div id="ad7a8217" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
@@ -2342,7 +2342,7 @@ font-style: inherit;">"avg_puck_speed_mph"</span>,</span>
 </section>
 <section id="traffic" class="level3">
 <h3 class="anchored" data-anchor-id="traffic">Traffic</h3>
-<p>Section 2.4.1.5 of the thesis models “traffic” with <em>goal-face occlusion</em>. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the “shadow” that skater casts onto the net from the shooter’s viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.</p>
+<p>Section 2.4.1.5 of the thesis models traffic with goal-face occlusion. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the “shadow” that skater casts onto the net from the shooter’s viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.</p>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/occlusion_density.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:55.0%"></p>
@@ -2352,7 +2352,7 @@ font-style: inherit;">"avg_puck_speed_mph"</span>,</span>
 <p><img src="https://latex.codecogs.com/png.latex?%0Ay_%7B%5Ctext%7Bgoal%20line%7D%7D=%20%5Ctext%7BShotY%7D%20+%20(%5Ctext%7BSkaterY%7D%20-%20%5Ctext%7BShotY%7D)%20%5Ccdot%20%5Cfrac%7B%5Ctext%7BGoalX%7D%20-%20%5Ctext%7BShotX%7D%7D%7B%5Ctext%7BSkaterX%7D%20-%20%5Ctext%7BShotX%7D%7D%0A"></p>
 <p>Then, we find the total occlusion density between the two goal posts using the formula below to compute the probability mass of a normal bell curve:</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BOcclusion%20Density%7D%20=%20%5CPhi%5Cleft(%5Cfrac%7B%5Ctext%7BGOALPOST%7D%20-%20y_%7B%5Ctext%7Bgoal%7D%7D%7D%7B%5Csigma%7D%5Cright)%20-%20%5CPhi%5Cleft(%5Cfrac%7B-%5Ctext%7BGOALPOST%7D%20-%20y_%7B%5Ctext%7Bgoal%7D%7D%7D%7B%5Csigma%7D%5Cright)%0A"></p>
-<div id="b8d16ad7" class="cell" data-execution_count="9">
+<div id="7aa63732" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="im" style="color: #00769E;
@@ -2770,11 +2770,12 @@ font-style: inherit;">"total_occlusion"</span>,</span>
 </section>
 <section id="goaltender-positioning" class="level3">
 <h3 class="anchored" data-anchor-id="goaltender-positioning">Goaltender Positioning</h3>
-<p>Figure shows goaltender angle <img src="https://latex.codecogs.com/png.latex?%5Czeta"> and depth <img src="https://latex.codecogs.com/png.latex?d_g"> relative to the goal center, defined as the point on the goal line equidistant from the posts.</p>
-<p>Angle Discrepancy: <img src="https://latex.codecogs.com/png.latex?%5Czeta%20=%20%5Carccos!%5Cleft(%5Cfrac%7Bs%20%5Ccdot%20g%7D%7B%7Cs%7C,%7Cg%7C%7D%5Cright)%5Ctimes%5Cfrac%7B180%7D%7B%5Cpi%7D"></p>
-<p>Angle between the line to the shooter and the line to the goaltender, in degrees. A well-positioned goalie should be close to 0° (in line with the shooter and goal center); a goalie caught out of position will have a larger angle.</p>
-<p>Goaltender Depth: Straight-line distance from the goaltender to the goal center, i.e.&nbsp;how far out of the crease the goalie has come.</p>
-<div id="f20b9ac8" class="cell" data-execution_count="10">
+<p>Section 2.4.1.6 of the thesis deals with features related to goaltender positioning, goaltender angle and depth relative to the goal center. Figure 2.9 illustrates goaltender angle <img src="https://latex.codecogs.com/png.latex?%5Czeta"> and depth <img src="https://latex.codecogs.com/png.latex?d_g">:</p>
+<p><img src="https://your-website-url.example.com/posts/feature-based-xg/goaltender-positioning.png" class="img-fluid"></p>
+<p>The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.</p>
+<p>In this post, goaltender angle is: <img src="https://latex.codecogs.com/png.latex?%0A%5Czeta%20=%20%5Carccos%5Cleft(%5Cfrac%7Bs%20%5Ccdot%20g%7D%7B%7Cs%7C%7Cg%7C%7D%5Cright)%5Ctimes%5Cfrac%7B180%7D%7B%5Cpi%7D%0A"></p>
+<p>To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.</p>
+<div id="79ccbea4" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="co" style="color: #5E5E5E;
@@ -3167,7 +3168,11 @@ font-style: inherit;">"goaltender_depth"</span>,</span>
 <span id="cb10-74">)</span></code></pre></div></div>
 </details>
 </div>
-<p>TODO: GT Table</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_goaltender_table.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
 </section>
 </section>
 <section id="feature-based-expected-goals-xg-model" class="level2">

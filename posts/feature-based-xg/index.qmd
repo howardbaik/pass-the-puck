@@ -623,7 +623,7 @@ pre_shot_movement = (
 
 ### Traffic
 
-Section 2.4.1.5 of the thesis models "traffic" with *goal-face occlusion*. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the "shadow" that skater casts onto the net from the shooter's viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.
+Section 2.4.1.5 of the thesis models traffic with goal-face occlusion. For each skater on the ice, draw a straight line from the shooter through that skater and extend it to the goal line. Where that line crosses the goal line is, in effect, the "shadow" that skater casts onto the net from the shooter's viewpoint. Center a Gaussian (normal distribution) at that shadow point, with a standard deviation of 1.5 ft (a tunable parameter). Then integrate that Gaussian over the interval from −3 ft to +3 ft, which is the 6-ft-wide opening of the goal. The end result is goal-face occlusion.
 
 ![](occlusion_density.png){width=55% fig-align="center"}
 
@@ -737,14 +737,20 @@ shot_occlusion = (
 
 ### Goaltender Positioning
 
-Figure shows goaltender angle $\zeta$ and depth $d_g$ relative to the goal center, defined as the point on the goal line equidistant from the posts. 
+Section 2.4.1.6 of the thesis deals with features related to goaltender positioning, goaltender angle and depth relative to the goal center. Figure 2.9 illustrates goaltender angle $\zeta$ and depth $d_g$:
 
-Angle Discrepancy:
-$$\zeta = \arccos!\left(\frac{s \cdot g}{|s|,|g|}\right)\times\frac{180}{\pi}$$
+![](goaltender-positioning.png)
 
-Angle between the line to the shooter and the line to the goaltender, in degrees. A well-positioned goalie should be close to 0° (in line with the shooter and goal center); a goalie caught out of position will have a larger angle.
+The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.
 
-Goaltender Depth: Straight-line distance from the goaltender to the goal center, i.e. how far out of the crease the goalie has come.
+In this post, goaltender angle is:
+$$
+\zeta = \arccos\left(\frac{s \cdot g}{|s||g|}\right)\times\frac{180}{\pi}
+$$
+    
+
+To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.
+
 
 ```{python}
 # Per shot: defending team, release frame, shot location in tracking coords, goal center.
@@ -823,7 +829,10 @@ shot_goaltender = (
 )
 ```
 
-TODO: GT Table
+![](shot_goaltender_table.png){fig-align="center"}
+
+
+
 
 
 ## Feature-Based Expected Goals (xG) Model

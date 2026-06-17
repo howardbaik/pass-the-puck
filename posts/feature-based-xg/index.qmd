@@ -10,6 +10,7 @@ format:
         .quarto-title .description { display: none; }
         </style>
 link-external-newwindow: true
+draft: true
 eval: false
 author: "Howard Baik"
 date: "2026-06-17"

@@ -829,7 +829,89 @@ shot_goaltender = (
 
 ## Feature-Based Expected Goals (xG) Model
 
+With feature engineering complete, we can now train an XGBoost model to predict each shot's probability of becoming a goal. First, we consolidate all the features above into a single dataset by joining them on `shot_id`.
 
+```{python}
+# Shot Location was computed display-only above, so its features are recomputed here
+# keyed by shot_id (same logic: normalize to the right side, then angle/distances).
+shot_location = (
+    shots
+    # Normalize to right side
+    .with_columns(
+        pl.when(pl.col("X_Coordinate") < 0)
+        .then(-pl.col("X_Coordinate"))
+        .otherwise(pl.col("X_Coordinate"))
+        .alias("X_Coordinate"),
+
+        pl.when(pl.col("X_Coordinate") < 0)
+        .then(-pl.col("Y_Coordinate"))
+        .otherwise(pl.col("Y_Coordinate"))
+        .alias("Y_Coordinate"),
+    )
+    # Shot angle (degrees), meridian distance, and distance to goal
+    .with_columns(
+        (
+            pl.arctan2(pl.col("Y_Coordinate"), 89 - pl.col("X_Coordinate"))
+            .abs()
+            * (180 / math.pi)
+        ).alias("Shot_Angle"),
+        pl.col("Y_Coordinate").abs().alias("d_m"),
+    )
+    .with_columns(
+        ((89 - pl.col("X_Coordinate")).pow(2) + pl.col("Y_Coordinate").pow(2))
+        .sqrt()
+        .alias("shot_distance"),
+    )
+    .select("shot_id", "Shot_Angle", "d_m", "shot_distance")
+)
+
+# Unify all expected-goals features into one per-shot dataset by joining on shot_id.
+shot_features = (
+    shots.select("shot_id", "Period", "Clock", "Clock_Seconds", "Team", "Player_Id", "Event", "Detail_1")
+    .with_columns((pl.col("Event") == "Goal").cast(pl.Int8).alias("is_goal"))
+    # Shot Location
+    .join(shot_location, on="shot_id", how="left")
+    # Shooter Motion
+    .join(
+        shot_speeds.select("shot_id", "shooter_speed_fps", "shooter_speed_mph", "match_quality"),
+        on="shot_id", how="left",
+    )
+    # Pressure
+    .join(pressure, on="shot_id", how="left")
+    # Pre-Shot Movement
+    .join(crossings, on="shot_id", how="left")
+    .join(avg_speed, on="shot_id", how="left")
+    # Traffic
+    .join(total_occlusion, on="shot_id", how="left")
+    # Goaltender Positioning
+    .join(goaltender_positioning, on="shot_id", how="left")
+    .sort(["Period", "Clock_Seconds"], descending=[False, True])
+    .drop("Clock_Seconds")
+)
+
+print(f"{shot_features.height} shots x {shot_features.width} columns "
+      f"({shot_features['is_goal'].sum()} goals)")
+print("nulls per column:", shot_features.null_count().row(0, named=True))
+
+
+# Final output:
+#  A single table with one row per shot and all expected-goals features ready for modeling.
+shot_features
+
+```
+
+The resulting dataset, with one row per shot and every feature attached, looks like this:
+
+TODO: GT Table
+
+### XGBoost
+
+
+
+
+
+
+### TabPFN (Experimental)
 
 
 

@@ -1027,7 +1027,7 @@ plt.show()
 
 This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian Distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.
 
-Lastly, we look at SHAP dependence, as in Figure 2.13 of the thesis, to analyze the per-shot SHAP values as a function of the feature value for each feature.
+Finally, following Figure 2.13 of the thesis, we create SHAP dependence plots, which chart each shot's SHAP value against its underlying feature value, one panel per feature.
 
 ```{python}
 import matplotlib.pyplot as plt
@@ -1089,14 +1089,11 @@ plt.show()
 
 ![](shap_dependence_grid.png)
 
+A few patterns stand out from these plots: the closer the shot, the more likely it is to become a goal; the faster the shot, the more likely it is to become a goal; the farther away the defender is from the shot, the more likely it is to become a goal; and the wider the shot angle is, the less likely it is to become a goal.
 
-### TabPFN
+The meridian features tell a related story: the more time that elapses between the meridian crossing and the shot, the less likely it is to score; the larger the meridian distance, the less likely it is to score; and shots whose meridian crossing happened close to the net are the most likely to score.
 
-We explore the TabPFN model, which is designed to handle tabular data with high efficiency and accuracy. This model is particularly well-suited for our dataset, given its structure and the types of predictions we aim to make.
-
-
-
-
+The goaltender depth panel adds an interesting pattern. When the goaltender is pinned deep in the net (depth of 2-4 ft) or has positioned far out of it (depth of 6-10 ft), the shot is less likely to score. Finally, the total occlusion panel shows that the heavier the traffic in the shooting lane, the more likely the shot finds the net. Notably, at a total occlusion of 1.0, the SHAP value is the highest.
 
 
 

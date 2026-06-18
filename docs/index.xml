@@ -29,7 +29,7 @@
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data">Big Data Cup 2026 GitHub repository</a> and tag each events and tracking data with a Game ID. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="f5139797" class="cell" data-execution_count="1">
+<div id="31e6ecff" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="im" style="color: #00769E;
@@ -330,7 +330,7 @@ font-style: inherit;">=</span> pl.concat(track_frames)</span></code></pre></div>
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/shot_types_distribution.png" class="img-fluid"></p>
-<div id="5040f7c9" class="cell" data-execution_count="2">
+<div id="e28ae758" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">shot_types <span class="op" style="color: #5E5E5E;
@@ -522,7 +522,7 @@ font-style: inherit;">8</span>)</span>
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="006ce488" class="cell" data-execution_count="3">
+<div id="509d8256" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">descriptions <span class="op" style="color: #5E5E5E;
@@ -756,7 +756,7 @@ font-style: inherit;">"110px"</span>})</span>
 <li><p>The meridian distance <img src="https://latex.codecogs.com/png.latex?d_m"> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
 <li><p>The shot distance <img src="https://latex.codecogs.com/png.latex?d"> is the distance between the shot location and the goal.</p></li>
 </ol>
-<div id="fd879543" class="cell" data-execution_count="4">
+<div id="199c4653" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">(</span>
@@ -935,7 +935,7 @@ font-style: inherit;">"d_euclidean"</span>),</span>
 <li><p><code>MAX_SPEED_MPH = 30.0</code> is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch.</p></li>
 </ol>
 <p>To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the <code>Image Id</code> column, so that an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> gives frame <code>065468</code>. After sorting each player’s frames in chronological order, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “players”.</p>
-<div id="610fbc0b" class="cell" data-execution_count="5">
+<div id="89609d58" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">FPS <span class="op" style="color: #5E5E5E;
@@ -1148,7 +1148,7 @@ font-style: inherit;">"speed_mph"</span>)</span>
 </details>
 </div>
 <p>Now that we have player speed, we filter the events data for shots and goals, calling this dataset “shots”. We left join “players” onto “shots” to create shooter tracking data, then keep only the shooter’s frames within one second of the shot. Among those, we pick the frame whose tracked position is closest (by Euclidean distance) to where the event records the shot — the moment the tracking best lines up with the recorded release point — and read off the shooter’s speed there. The result is the shots dataset with one shooter-speed column per shot, which we label with <code>shot_id</code>.</p>
-<div id="8c920051" class="cell" data-execution_count="6">
+<div id="fedce5eb" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">shots <span class="op" style="color: #5E5E5E;
@@ -1507,7 +1507,7 @@ font-style: inherit;">True</span>])</span>
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.</p>
-<div id="adec9e80" class="cell" data-execution_count="7">
+<div id="7d9ce033" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="co" style="color: #5E5E5E;
@@ -1812,7 +1812,7 @@ font-style: inherit;">"second_closest_def_dist"</span>,</span>
 <p>To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “puck”.</p>
 <p>Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the “window” dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck’s y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.</p>
 <p>To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.</p>
-<div id="3a7761b5" class="cell" data-execution_count="8">
+<div id="0cfca934" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
@@ -2352,7 +2352,7 @@ font-style: inherit;">"avg_puck_speed_mph"</span>,</span>
 <p><img src="https://latex.codecogs.com/png.latex?%0Ay_%7B%5Ctext%7Bgoal%20line%7D%7D=%20%5Ctext%7BShotY%7D%20+%20(%5Ctext%7BSkaterY%7D%20-%20%5Ctext%7BShotY%7D)%20%5Ccdot%20%5Cfrac%7B%5Ctext%7BGoalX%7D%20-%20%5Ctext%7BShotX%7D%7D%7B%5Ctext%7BSkaterX%7D%20-%20%5Ctext%7BShotX%7D%7D%0A"></p>
 <p>Then, we find the total occlusion density between the two goal posts using the formula below to compute the probability mass of a normal bell curve:</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BOcclusion%20Density%7D%20=%20%5CPhi%5Cleft(%5Cfrac%7B%5Ctext%7BGOALPOST%7D%20-%20y_%7B%5Ctext%7Bgoal%7D%7D%7D%7B%5Csigma%7D%5Cright)%20-%20%5CPhi%5Cleft(%5Cfrac%7B-%5Ctext%7BGOALPOST%7D%20-%20y_%7B%5Ctext%7Bgoal%7D%7D%7D%7B%5Csigma%7D%5Cright)%0A"></p>
-<div id="ac8235db" class="cell" data-execution_count="9">
+<div id="b17cf1af" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="im" style="color: #00769E;
@@ -2774,7 +2774,7 @@ font-style: inherit;">"total_occlusion"</span>,</span>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/goaltender-positioning.png" class="img-fluid"></p>
 <p>The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.</p>
 <p>To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.</p>
-<div id="1870ceb6" class="cell" data-execution_count="10">
+<div id="087089bd" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="co" style="color: #5E5E5E;
@@ -3177,7 +3177,7 @@ font-style: inherit;">"goaltender_depth"</span>,</span>
 <section id="feature-based-expected-goals-xg-model" class="level2">
 <h2 class="anchored" data-anchor-id="feature-based-expected-goals-xg-model">Feature-Based Expected Goals (xG) Model</h2>
 <p>With feature engineering complete, we join all of the features above on <code>shot_id</code> to assemble a single modeling dataset. The result spans 10 games and holds 1,190 shots across 21 columns, 58 of which are goals.</p>
-<div id="bc712aa7" class="cell" data-execution_count="11">
+<div id="396248d9" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><span class="co" style="color: #5E5E5E;
@@ -3461,7 +3461,7 @@ font-style: inherit;">#  A single table with one row per shot and all expected-g
 <h3 class="anchored" data-anchor-id="xgboost">XGBoost</h3>
 <p>Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with three metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC).</p>
 <p>We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games.</p>
-<div id="9ad8e44e" class="cell" data-execution_count="12">
+<div id="64980d18" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><span class="im" style="color: #00769E;
@@ -3742,7 +3742,7 @@ font-style: inherit;">0.5</span>,</span>
 </div>
 <p>Our metrics are not as impressive as those in the thesis’s Table 2.4, largely because of the gap in sample size. The thesis works with 79,624 shots, of which 4.08% are goals, while our dataset has just 1,190 shots — roughly 67 times fewer. The difference in goals is just as stark: the thesis trains and evaluates on 3,248 goals, compared to our 58 goals.</p>
 <p>We calculate absolute SHAP values, which quantify the impact of each feature on the model’s predictions.</p>
-<div id="2accf9d8" class="cell" data-execution_count="13">
+<div id="a4f85251" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="im" style="color: #00769E;
@@ -3871,7 +3871,266 @@ font-style: inherit;">300</span>)</span>
 <p><img src="https://your-website-url.example.com/posts/feature-based-xg/shap_feature_importance.png" class="img-fluid quarto-figure quarto-figure-left figure-img" style="width:80.0%"></p>
 </figure>
 </div>
-<p>This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.</p>
+<p>This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian Distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.</p>
+<p>Lastly, we look at SHAP dependence, as in Figure 2.13 of the thesis, to analyze the per-shot SHAP values as a function of the feature value for each feature.</p>
+<div id="206c26b4" class="cell" data-execution_count="14">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> matplotlib.pyplot <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> plt</span>
+<span id="cb14-2"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> numpy <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> np</span>
+<span id="cb14-3"></span>
+<span id="cb14-4"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Features to plot (excluding categorical Shot Type) sorted by importance</span></span>
+<span id="cb14-5">plot_features <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [f <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> f <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> shap_importance[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Feature"</span>].to_list() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> f <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Detail_1"</span>]</span>
+<span id="cb14-6"></span>
+<span id="cb14-7">FEATURE_LABELS_UNITS <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {</span>
+<span id="cb14-8">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"shot_distance"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot Distance (ft)"</span>,</span>
+<span id="cb14-9">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"d_m"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Meridian Distance (ft)"</span>,</span>
+<span id="cb14-10">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"goaltender_depth"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Goaltender Depth (ft)"</span>,</span>
+<span id="cb14-11">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"meridian_cross_dist"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Meridian Crossing Dist. (ft)"</span>,</span>
+<span id="cb14-12">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot_Angle"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shot Angle (deg.)"</span>,</span>
+<span id="cb14-13">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"avg_puck_speed_fps"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Avg. Puck Speed (ft/s)"</span>,</span>
+<span id="cb14-14">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"time_since_meridian"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Time Since Meridian (s)"</span>,</span>
+<span id="cb14-15">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"closest_def_dist"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Closest Defender Dist. (ft)"</span>,</span>
+<span id="cb14-16">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"second_closest_def_dist"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"2nd Closest Defender Dist. (ft)"</span>,</span>
+<span id="cb14-17">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"shooter_speed_fps"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Shooter Speed (ft/s)"</span>,</span>
+<span id="cb14-18">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"angle_discrepancy"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Angle Discrepancy (deg.)"</span>,</span>
+<span id="cb14-19">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"total_occlusion"</span>: <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Total Occlusion"</span>,</span>
+<span id="cb14-20">}</span>
+<span id="cb14-21"></span>
+<span id="cb14-22"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Map feature names to their column index in X / shap_values</span></span>
+<span id="cb14-23">feat_idx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {f: i <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, f <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(FEATURES)}</span>
+<span id="cb14-24"></span>
+<span id="cb14-25">ncols <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span></span>
+<span id="cb14-26">nrows <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4</span></span>
+<span id="cb14-27">fig, axes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.subplots(nrows, ncols, figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">14</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">14</span>))</span>
+<span id="cb14-28">axes_flat <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> axes.flatten()</span>
+<span id="cb14-29"></span>
+<span id="cb14-30"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, feat <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(plot_features):</span>
+<span id="cb14-31">    ax <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> axes_flat[i]</span>
+<span id="cb14-32">    col_idx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> feat_idx[feat]</span>
+<span id="cb14-33">    x_vals <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> X.iloc[:, col_idx].values.astype(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>)</span>
+<span id="cb14-34">    y_vals <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> shap_values[:, col_idx]</span>
+<span id="cb14-35"></span>
+<span id="cb14-36">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Background histogram</span></span>
+<span id="cb14-37">    ax2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> ax.twinx()</span>
+<span id="cb14-38">    ax2.hist(x_vals, bins<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">30</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"lightgray"</span>, edgecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"none"</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.6</span>)</span>
+<span id="cb14-39">    ax2.set_yticks([])</span>
+<span id="cb14-40">    ax2.set_ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>)</span>
+<span id="cb14-41"></span>
+<span id="cb14-42">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># SHAP scatter (on top)</span></span>
+<span id="cb14-43">    ax.scatter(x_vals, y_vals, s<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"#1f77b4"</span>, zorder<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>)</span>
+<span id="cb14-44">    ax.set_xlabel(FEATURE_LABELS_UNITS.get(feat, feat))</span>
+<span id="cb14-45">    ax.set_ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"SHAP Value"</span>)</span>
+<span id="cb14-46">    ax.set_axisbelow(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb14-47">    ax.grid(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.3</span>)</span>
+<span id="cb14-48"></span>
+<span id="cb14-49"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Hide any unused subplots</span></span>
+<span id="cb14-50"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> j <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">range</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(plot_features), <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(axes_flat)):</span>
+<span id="cb14-51">    axes_flat[j].set_visible(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>)</span>
+<span id="cb14-52"></span>
+<span id="cb14-53">plt.tight_layout()</span>
+<span id="cb14-54">fig.savefig(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"shap_dependence_grid.png"</span>, dpi<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">300</span>)</span>
+<span id="cb14-55">plt.show()</span></code></pre></div></div>
+</details>
+</div>
+<p><img src="https://your-website-url.example.com/posts/feature-based-xg/shap_dependence_grid.png" class="img-fluid"></p>
 </section>
 <section id="tabpfn" class="level3">
 <h3 class="anchored" data-anchor-id="tabpfn">TabPFN</h3>

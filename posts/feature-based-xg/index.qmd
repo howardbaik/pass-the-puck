@@ -1025,9 +1025,69 @@ plt.show()
 
 ![](shap_feature_importance.png){width=80% fig-align="left"}
 
-This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.
+This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian Distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.
 
+Lastly, we look at SHAP dependence, as in Figure 2.13 of the thesis, to analyze the per-shot SHAP values as a function of the feature value for each feature.
 
+```{python}
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Features to plot (excluding categorical Shot Type) sorted by importance
+plot_features = [f for f in shap_importance["Feature"].to_list() if f != "Detail_1"]
+
+FEATURE_LABELS_UNITS = {
+    "shot_distance": "Shot Distance (ft)",
+    "d_m": "Meridian Distance (ft)",
+    "goaltender_depth": "Goaltender Depth (ft)",
+    "meridian_cross_dist": "Meridian Crossing Dist. (ft)",
+    "Shot_Angle": "Shot Angle (deg.)",
+    "avg_puck_speed_fps": "Avg. Puck Speed (ft/s)",
+    "time_since_meridian": "Time Since Meridian (s)",
+    "closest_def_dist": "Closest Defender Dist. (ft)",
+    "second_closest_def_dist": "2nd Closest Defender Dist. (ft)",
+    "shooter_speed_fps": "Shooter Speed (ft/s)",
+    "angle_discrepancy": "Angle Discrepancy (deg.)",
+    "total_occlusion": "Total Occlusion",
+}
+
+# Map feature names to their column index in X / shap_values
+feat_idx = {f: i for i, f in enumerate(FEATURES)}
+
+ncols = 3
+nrows = 4
+fig, axes = plt.subplots(nrows, ncols, figsize=(14, 14))
+axes_flat = axes.flatten()
+
+for i, feat in enumerate(plot_features):
+    ax = axes_flat[i]
+    col_idx = feat_idx[feat]
+    x_vals = X.iloc[:, col_idx].values.astype(float)
+    y_vals = shap_values[:, col_idx]
+
+    # Background histogram
+    ax2 = ax.twinx()
+    ax2.hist(x_vals, bins=30, color="lightgray", edgecolor="none", alpha=0.6)
+    ax2.set_yticks([])
+    ax2.set_ylabel("")
+
+    # SHAP scatter (on top)
+    ax.scatter(x_vals, y_vals, s=2, alpha=0.5, color="#1f77b4", zorder=3)
+    ax.set_xlabel(FEATURE_LABELS_UNITS.get(feat, feat))
+    ax.set_ylabel("SHAP Value")
+    ax.set_axisbelow(True)
+    ax.grid(True, alpha=0.3)
+
+# Hide any unused subplots
+for j in range(len(plot_features), len(axes_flat)):
+    axes_flat[j].set_visible(False)
+
+plt.tight_layout()
+fig.savefig("shap_dependence_grid.png", dpi=300)
+plt.show()
+```
+
+![](shap_dependence_grid.png)
 
 
 ### TabPFN

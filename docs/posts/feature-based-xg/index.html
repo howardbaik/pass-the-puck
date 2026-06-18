@@ -232,7 +232,7 @@ window.Quarto = {
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data">Big Data Cup 2026 GitHub repository</a> and tag each events and tracking data with a Game ID. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="1cd328c1" class="cell" data-execution_count="1">
+<div id="55076ace" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
@@ -307,7 +307,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="./shot_types_distribution.png" class="img-fluid"></p>
-<div id="fdf97cdf" class="cell" data-execution_count="2">
+<div id="8453d554" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>shot_types <span class="op">=</span> (</span>
@@ -347,7 +347,7 @@ window.Quarto = {
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="aa6d0718" class="cell" data-execution_count="3">
+<div id="87c4efe3" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>descriptions <span class="op">=</span> {</span>
@@ -427,7 +427,7 @@ window.Quarto = {
 <li><p>The meridian distance <span class="math inline">\(d_m\)</span> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
 <li><p>The shot distance <span class="math inline">\(d\)</span> is the distance between the shot location and the goal.</p></li>
 </ol>
-<div id="08306ebc" class="cell" data-execution_count="4">
+<div id="eaae2bcb" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>(</span>
@@ -498,7 +498,7 @@ window.Quarto = {
 <li><p><code>MAX_SPEED_MPH = 30.0</code> is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch.</p></li>
 </ol>
 <p>To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the <code>Image Id</code> column, so that an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> gives frame <code>065468</code>. After sorting each player’s frames in chronological order, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “players”.</p>
-<div id="5cbbf012" class="cell" data-execution_count="5">
+<div id="9a2c94c0" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>FPS <span class="op">=</span> <span class="dv">30</span>                  </span>
@@ -545,7 +545,7 @@ window.Quarto = {
 </details>
 </div>
 <p>Now that we have player speed, we filter the events data for shots and goals, calling this dataset “shots”. We left join “players” onto “shots” to create shooter tracking data, then keep only the shooter’s frames within one second of the shot. Among those, we pick the frame whose tracked position is closest (by Euclidean distance) to where the event records the shot — the moment the tracking best lines up with the recorded release point — and read off the shooter’s speed there. The result is the shots dataset with one shooter-speed column per shot, which we label with <code>shot_id</code>.</p>
-<div id="e853ac6b" class="cell" data-execution_count="6">
+<div id="4d3ebd77" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>shots <span class="op">=</span> (</span>
@@ -630,7 +630,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.</p>
-<div id="91b3f854" class="cell" data-execution_count="7">
+<div id="33d79f74" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defending skaters only: opposite tracking team, real jersey numbers, no goalies.</span></span>
@@ -717,7 +717,7 @@ window.Quarto = {
 <p>To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “puck”.</p>
 <p>Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the “window” dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck’s y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.</p>
 <p>To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.</p>
-<div id="be803e0e" class="cell" data-execution_count="8">
+<div id="cbf91fac" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we</span></span>
@@ -833,7 +833,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <p><span class="math display">\[
 \text{Occlusion Density} = \Phi\left(\frac{\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right) - \Phi\left(\frac{-\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right)
 \]</span></p>
-<div id="96c9a69a" class="cell" data-execution_count="9">
+<div id="5ead3fd0" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
@@ -938,7 +938,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <p><img src="goaltender-positioning.png" class="img-fluid"></p>
 <p>The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.</p>
 <p>To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.</p>
-<div id="71dce94c" class="cell" data-execution_count="10">
+<div id="64bc3883" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per shot: defending team, release frame, shot location in tracking coords, goal center.</span></span>
@@ -1027,7 +1027,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <section id="feature-based-expected-goals-xg-model" class="level2">
 <h2 class="anchored" data-anchor-id="feature-based-expected-goals-xg-model">Feature-Based Expected Goals (xG) Model</h2>
 <p>With feature engineering complete, we join all of the features above on <code>shot_id</code> to assemble a single modeling dataset. The result spans 10 games and holds 1,190 shots across 21 columns, 58 of which are goals.</p>
-<div id="40607509" class="cell" data-execution_count="11">
+<div id="8558af45" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Shot Location was computed display-only above, so its features are recomputed here</span></span>
@@ -1099,7 +1099,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <h3 class="anchored" data-anchor-id="xgboost">XGBoost</h3>
 <p>Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with three metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC).</p>
 <p>We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games.</p>
-<div id="2d1b52a3" class="cell" data-execution_count="12">
+<div id="2ff20d54" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> xgboost <span class="im">as</span> xgb</span>
@@ -1186,7 +1186,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 </div>
 <p>Our metrics are not as impressive as those in the thesis’s Table 2.4, largely because of the gap in sample size. The thesis works with 79,624 shots, of which 4.08% are goals, while our dataset has just 1,190 shots — roughly 67 times fewer. The difference in goals is just as stark: the thesis trains and evaluates on 3,248 goals, compared to our 58 goals.</p>
 <p>We calculate absolute SHAP values, which quantify the impact of each feature on the model’s predictions.</p>
-<div id="1910991c" class="cell" data-execution_count="13">
+<div id="3f228935" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1227,7 +1227,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 </div>
 <p>This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian Distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.</p>
 <p>Finally, following Figure 2.13 of the thesis, we create SHAP dependence plots, which chart each shot’s SHAP value against its underlying feature value, one panel per feature.</p>
-<div id="640f2dc5" class="cell" data-execution_count="14">
+<div id="d20e0915" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1295,6 +1295,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 </section>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>In this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault’s PhD thesis, “Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data”. We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis.</p>
 
 
 </section>

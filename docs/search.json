@@ -46,6 +46,6 @@
     "href": "posts/feature-based-xg/index.html#conclusion",
     "title": "Feature-Based Expected Goals (xG)",
     "section": "Conclusion",
-    "text": "Conclusion"
+    "text": "Conclusion\nIn this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault’s PhD thesis, “Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data”. We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis."
   }
 ]

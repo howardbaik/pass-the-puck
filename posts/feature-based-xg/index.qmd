@@ -12,7 +12,7 @@ format:
 link-external-newwindow: true
 eval: false
 author: "Howard Baik"
-date: "2026-06-19"
+date: "2026-06-18"
 image: "thumbnail.png"
 description: "This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault's PhD thesis."
 ---

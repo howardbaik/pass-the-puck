@@ -902,7 +902,7 @@ The resulting dataset, with one row per shot and every feature attached, looks l
 
 ### XGBoost
 
-Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with four metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC) and the estimated calibration error (ECE).
+Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with three metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC).
 
 We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games. 
 
@@ -985,12 +985,56 @@ metrics = pl.DataFrame({
 ```
 
 
-![](model_performance.png)
+![](model_performance.png){fig-align="center"}
+
+Our metrics are not as impressive as those in the thesis's Table 2.4, largely because of the gap in sample size. The thesis works with 79,624 shots, of which 4.08% are goals, while our dataset has just 1,190 shots — roughly 67 times fewer. The difference in goals is just as stark: the thesis trains and evaluates on 3,248 goals, compared to our 58 goals.
+
+We calculate absolute SHAP values, which quantify the impact of each feature on the model's predictions.
+
+```{python}
+import matplotlib.pyplot as plt
+
+FEATURE_LABELS = {
+    "Shot_Angle": "Shot Angle",
+    "d_m": "Meridian Distance",
+    "shot_distance": "Shot Distance",
+    "shooter_speed_fps": "Shooter Speed",
+    "closest_def_dist": "Closest Defender Dist.",
+    "second_closest_def_dist": "2nd Closest Defender Dist.",
+    "time_since_meridian": "Time Since Meridian",
+    "meridian_cross_dist": "Meridian Crossing Dist.",
+    "avg_puck_speed_fps": "Avg. Puck Speed (Feet/Second)",
+    "total_occlusion": "Total Occlusion",
+    "angle_discrepancy": "Angle Discrepancy",
+    "goaltender_depth": "Goaltender Depth",
+    "Detail_1": "Shot Type",
+}
+
+shap_pd = shap_importance.to_pandas()
+shap_pd["Label"] = shap_pd["Feature"].map(FEATURE_LABELS)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.barh(shap_pd["Label"], shap_pd["Mean_Abs_SHAP"])
+ax.invert_yaxis()
+ax.set_xlabel("Mean |SHAP value|")
+ax.set_title("Feature importance (mean absolute SHAP value)")
+plt.tight_layout()
+fig.savefig("shap_feature_importance.png", dpi=300)
+plt.show()
+```
+
+![](shap_feature_importance.png){width=80% fig-align="left"}
+
+This plot closely resembles Figure 2.11 from the thesis, which shows that Shot Distance and Meridian distance are the two most important features to the xG model. Interestingly, our plot illustrates that shot type and total occlusion are the two least important features.
 
 
 
 
 ### TabPFN
+
+We explore the TabPFN model, which is designed to handle tabular data with high efficiency and accuracy. This model is particularly well-suited for our dataset, given its structure and the types of predictions we aim to make.
+
+
 
 
 

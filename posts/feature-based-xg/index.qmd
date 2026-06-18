@@ -12,7 +12,7 @@ format:
 link-external-newwindow: true
 eval: false
 author: "Howard Baik"
-date: "2026-06-17"
+date: "2026-06-19"
 image: "thumbnail.png"
 description: "This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault's PhD thesis."
 ---
@@ -1104,3 +1104,5 @@ In this post, we implement the Feature-Based Expected Goals (xG) Model in Sectio
 We find that our metrics fall short of the thesis's due to the dataset size difference, but it still provides valuable insights into factors influencing goal likelihood. Shot distance and meridian distance emerge as the two most important features, and the closer and faster the shot, the more likely it is to become a goal.
 
 Future work will be implementations of later sections of Arsenault's thesis, such as Section 2.5's Graph-Based Approach, in which he trains neural networks to estimate goal likelihood.
+
+A Jupyter notebook of the code is available [here](https://github.com/howardbaik/player-tracking-data/blob/main/feature-based-expected-goals.ipynb).

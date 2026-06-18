@@ -829,7 +829,7 @@ shot_goaltender = (
 
 ## Feature-Based Expected Goals (xG) Model
 
-With feature engineering complete, we consolidate all the features above into a single dataset by joining them on `shot_id`. 
+With feature engineering complete, we join all of the features above on `shot_id` to assemble a single modeling dataset. The result spans 10 games and holds 1,190 shots across 21 columns, 58 of which are goals.
 
 ```{python}
 # Shot Location was computed display-only above, so its features are recomputed here
@@ -904,11 +904,11 @@ The resulting dataset, with one row per shot and every feature attached, looks l
 
 Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with four metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC) and the estimated calibration error (ECE).
 
-We follow the hyperparameters laid out in the thesis: the maximum depth of a tree is 4, the number of trees is 125, and the learning rate is 0.075.
+We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games. 
 
 ```{python}
 import xgboost as xgb
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import log_loss, brier_score_loss, roc_auc_score
 
 FEATURES = [
@@ -934,6 +934,7 @@ model_df = shot_features.to_pandas()
 X = model_df[FEATURES].copy()
 X["Detail_1"] = X["Detail_1"].astype("category")
 y = model_df["is_goal"].to_numpy()
+groups = model_df["Game"].to_numpy()  # split by game so no game leaks across folds
 
 # Hyperparameters from the cited paper (selected there via cross-validation):
 # tree depth 4, 125 trees, learning rate 0.075.
@@ -949,9 +950,12 @@ xgb_params = dict(
 )
 
 # Pooled out-of-fold predictions: each fold's model predicts the shots it never saw.
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+# Grouped by game so every test fold is made of whole games the model never trained on
+# (avoids leaking game-specific signal across folds); stratified to keep each fold near
+# the overall goal rate.
+cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
 oof_prob = np.full(len(y), np.nan)
-for train_idx, test_idx in cv.split(X, y):
+for train_idx, test_idx in cv.split(X, y, groups):
     model = xgb.XGBClassifier(**xgb_params)
     model.fit(X.iloc[train_idx], y[train_idx])
     oof_prob[test_idx] = model.predict_proba(X.iloc[test_idx])[:, 1]
@@ -961,46 +965,32 @@ assert not np.isnan(oof_prob).any()
 base_rate = y.mean()
 baseline_prob = np.full(len(y), base_rate)
 
-
-def expected_calibration_error(y_true, y_prob, n_bins=5):
-    # Equal-width bins over [0, 1]; ECE is the count-weighted mean gap between each
-    # bin's mean predicted probability and its observed goal rate. Few bins (5) given
-    # only 119 shots / 6 goals. np.digitize puts a prob of exactly 1.0 in an extra
-    # bin, so clip the top edge back into the last bin.
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    bin_idx = np.clip(np.digitize(y_prob, edges[1:-1]), 0, n_bins - 1)
-    ece = 0.0
-    for b in range(n_bins):
-        mask = bin_idx == b
-        if mask.any():
-            gap = abs(y_true[mask].mean() - y_prob[mask].mean())
-            ece += mask.mean() * gap
-    return ece
-
 metrics = pl.DataFrame({
     "Metric": [
         "Binary cross-entropy",
         "Brier score",
-        "Expected calibration error (ECE)",
         "ROC AUC",
     ],
     "Model": [
         log_loss(y, oof_prob),
         brier_score_loss(y, oof_prob),
-        expected_calibration_error(y, oof_prob),
         roc_auc_score(y, oof_prob),
     ],
     "Baseline": [
         log_loss(y, baseline_prob),
         brier_score_loss(y, baseline_prob),
-        expected_calibration_error(y, baseline_prob),
         0.5,
     ],
 })
 ```
 
 
+![](model_performance.png)
 
+
+
+
+### TabPFN
 
 
 

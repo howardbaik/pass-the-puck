@@ -232,7 +232,7 @@ window.Quarto = {
 <section id="data-import" class="level3">
 <h3 class="anchored" data-anchor-id="data-import">Data Import</h3>
 <p>We import the data from the <a href="https://github.com/bigdatacup/Big-Data-Cup-2026/releases/tag/Data">Big Data Cup 2026 GitHub repository</a> and tag each events and tracking data with a Game ID. Then, we convert the clock strings (“MM:SS” / “M:SS”) to total seconds for easier comparison and joining between the events and tracking datasets. The tracking data is separated by period (P1/P2/P3/OT), so we combine all the tracking files into one dataset of every tracked player-frame across all games and periods.</p>
-<div id="11463d67" class="cell" data-execution_count="1">
+<div id="da80b902" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
@@ -307,7 +307,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="distribution-of-shot-types">Distribution of Shot Types</h3>
 <p>We look at the distribution of shot types in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 1</code> column, which indicates the type of shot taken. We then visualize this distribution using a bar chart.</p>
 <p><img src="./shot_types_distribution.png" class="img-fluid"></p>
-<div id="fca769fe" class="cell" data-execution_count="2">
+<div id="075d7fdd" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>shot_types <span class="op">=</span> (</span>
@@ -347,7 +347,7 @@ window.Quarto = {
 <section id="distribution-of-shot-outcomes" class="level3">
 <h3 class="anchored" data-anchor-id="distribution-of-shot-outcomes">Distribution of Shot Outcomes</h3>
 <p>We look at the shot outcomes in the events dataset. We filter for <code>Shot</code> and <code>Goal</code> events and count the number of unique occurences of the <code>Detail 2</code> column, which indicates the outcome of the shot (e.g., On Net, Missed, Blocked).</p>
-<div id="74ceca75" class="cell" data-execution_count="3">
+<div id="c05e882f" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>descriptions <span class="op">=</span> {</span>
@@ -427,7 +427,7 @@ window.Quarto = {
 <li><p>The meridian distance <span class="math inline">\(d_m\)</span> is the perpendicular distance from the shot location to the meridian (the “royal road” running down the center of the ice).</p></li>
 <li><p>The shot distance <span class="math inline">\(d\)</span> is the distance between the shot location and the goal.</p></li>
 </ol>
-<div id="39d81616" class="cell" data-execution_count="4">
+<div id="a5137c03" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>(</span>
@@ -498,7 +498,7 @@ window.Quarto = {
 <li><p><code>MAX_SPEED_MPH = 30.0</code> is the maximum speed (in mph) we consider valid for our model. In the 25/26 NHL season, the maximum skating speed for a player was just under 25 mph, so a speed above 30 mph is determined a tracking glitch.</p></li>
 </ol>
 <p>To compute player speed, we first restrict the tracking data to player rows, excluding the puck. We read the frame number from the suffix of the <code>Image Id</code> column, so that an <code>Image Id</code> of <code>2025-10-11 Team A @ Team D_065468</code> gives frame <code>065468</code>. After sorting each player’s frames in chronological order, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “players”.</p>
-<div id="30e68bee" class="cell" data-execution_count="5">
+<div id="0e2e498b" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>FPS <span class="op">=</span> <span class="dv">30</span>                  </span>
@@ -545,7 +545,7 @@ window.Quarto = {
 </details>
 </div>
 <p>Now that we have player speed, we filter the events data for shots and goals, calling this dataset “shots”. We left join “players” onto “shots” to create shooter tracking data, then keep only the shooter’s frames within one second of the shot. Among those, we pick the frame whose tracked position is closest (by Euclidean distance) to where the event records the shot — the moment the tracking best lines up with the recorded release point — and read off the shooter’s speed there. The result is the shots dataset with one shooter-speed column per shot, which we label with <code>shot_id</code>.</p>
-<div id="c92bb435" class="cell" data-execution_count="6">
+<div id="6238099b" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>shots <span class="op">=</span> (</span>
@@ -630,7 +630,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="pressure">Pressure</h3>
 <p>In Section 2.4.1.3 of the thesis, pressure is defined as the distance from the shot location to the closest and second-closest defending skater. A continuous distance is more descriptive than counting defenders within 6 ft, and adding the second-closest defender captures pressure from multiple defenders.</p>
 <p>To compute pressure, we remove goaltenders from the players dataset and left join the remaining defenders onto the shots dataset, computing the distance from each defender to the shot. For each shot, we then keep the two smallest distances, giving the distance from the shot location to the closest and second-closest defenders.</p>
-<div id="0ddfb0aa" class="cell" data-execution_count="7">
+<div id="eb531453" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defending skaters only: opposite tracking team, real jersey numbers, no goalies.</span></span>
@@ -717,7 +717,7 @@ window.Quarto = {
 <p>To compute the pre-shot movement features, we first filter for the puck in the tracking dataset. Then, we take the change in <code>x</code> and <code>y</code> across the <code>SMOOTH_K</code>-frame central-difference window and divide the resulting Euclidean displacement by the elapsed time, converting frames to seconds with the <code>FPS = 30</code> factor introduced above. We call this new dataset “puck”.</p>
 <p>Then, we left-join this puck dataset onto the shots dataset and keep only the puck frames within 5 seconds (150 frames) before each shot. The resulting dataset is called the “window” dataset. In the window dataset, a meridian crossing shows up as a sign change in the puck’s y-position between consecutive frames (the puck passed through the y=0 line), so we keep those rows to locate the most recent crossing before the shot. With the resulting rows, we get the first two features: time since meridian crossing and the location where the puck crossed the meridian.</p>
 <p>To compute the average puck speed, we filter for rows in the window dataset where there is a 1-second (30 frames) difference in the frame when the shot was taken and the puck tracking frame. Then, we get the average of all the puck speeds recorded for a single shot id to find the average puck speed 1-second before the shot. The resulting average puck speed captures how fast the puck was moving into the shot.</p>
-<div id="6b804f4c" class="cell" data-execution_count="8">
+<div id="6aba5ea0" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The puck moves far faster than skaters, so the 30 mph skater cap doesn't apply; we</span></span>
@@ -833,7 +833,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <p><span class="math display">\[
 \text{Occlusion Density} = \Phi\left(\frac{\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right) - \Phi\left(\frac{-\text{GOALPOST} - y_{\text{goal}}}{\sigma}\right)
 \]</span></p>
-<div id="f9d490ac" class="cell" data-execution_count="9">
+<div id="0ce3cbdd" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
@@ -938,7 +938,7 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <p><img src="goaltender-positioning.png" class="img-fluid"></p>
 <p>The figure shows that an angle near 0° means the goalie is squared up to the shooter, while a larger angle means they are off-angle, leaving more of the net exposed. The depth, meanwhile, captures how far the goalie has ventured out of the crease.</p>
 <p>To compute these two features, we filter the player tracking data for goaltenders and left-join it onto the shots dataset. For each shot, we form two vectors from the goal center — (89, 0) or (−89, 0) — one pointing to the shooter and the other to the goaltender. The angle between these vectors gives the goaltender angle, and the length of the goaltender vector gives the goaltender depth.</p>
-<div id="7739fffc" class="cell" data-execution_count="10">
+<div id="95b33906" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per shot: defending team, release frame, shot location in tracking coords, goal center.</span></span>
@@ -1026,8 +1026,8 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 </section>
 <section id="feature-based-expected-goals-xg-model" class="level2">
 <h2 class="anchored" data-anchor-id="feature-based-expected-goals-xg-model">Feature-Based Expected Goals (xG) Model</h2>
-<p>With feature engineering complete, we consolidate all the features above into a single dataset by joining them on <code>shot_id</code>.</p>
-<div id="4d0c6fae" class="cell" data-execution_count="11">
+<p>With feature engineering complete, we join all of the features above on <code>shot_id</code> to assemble a single modeling dataset. The result spans 10 games and holds 1,190 shots across 21 columns, 58 of which are goals.</p>
+<div id="e5782522" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Shot Location was computed display-only above, so its features are recomputed here</span></span>
@@ -1098,6 +1098,91 @@ y_{\text{goal line}}= \text{ShotY} + (\text{SkaterY} - \text{ShotY}) \cdot \frac
 <section id="xgboost" class="level3">
 <h3 class="anchored" data-anchor-id="xgboost">XGBoost</h3>
 <p>Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with four metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC) and the estimated calibration error (ECE).</p>
+<p>We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games.</p>
+<div id="acd6daa8" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> xgboost <span class="im">as</span> xgb</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> StratifiedGroupKFold</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> log_loss, brier_score_loss, roc_auc_score</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>FEATURES <span class="op">=</span> [</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shot Location</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Shot_Angle"</span>, <span class="st">"d_m"</span>, <span class="st">"shot_distance"</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shooter Motion</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"shooter_speed_fps"</span>,</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Pressure</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"closest_def_dist"</span>, <span class="st">"second_closest_def_dist"</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Pre-Shot Movement</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"time_since_meridian"</span>, <span class="st">"meridian_cross_dist"</span>, <span class="st">"avg_puck_speed_fps"</span>,</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Traffic</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"total_occlusion"</span>,</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Goaltender Positioning</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"angle_discrepancy"</span>, <span class="st">"goaltender_depth"</span>,</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shot type</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Detail_1"</span>,</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Excluded: identifiers (shot_id/Period/Clock/Team/Player_Id), Event (it *is* the</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="co"># target), match_quality (data-quality flag), and the *_mph speed duplicates.</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>model_df <span class="op">=</span> shot_features.to_pandas()</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> model_df[FEATURES].copy()</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>X[<span class="st">"Detail_1"</span>] <span class="op">=</span> X[<span class="st">"Detail_1"</span>].astype(<span class="st">"category"</span>)</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> model_df[<span class="st">"is_goal"</span>].to_numpy()</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>groups <span class="op">=</span> model_df[<span class="st">"Game"</span>].to_numpy()  <span class="co"># split by game so no game leaks across folds</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Hyperparameters from the cited paper (selected there via cross-validation):</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="co"># tree depth 4, 125 trees, learning rate 0.075.</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>xgb_params <span class="op">=</span> <span class="bu">dict</span>(</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    max_depth<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>    n_estimators<span class="op">=</span><span class="dv">125</span>,</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>    learning_rate<span class="op">=</span><span class="fl">0.075</span>,</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>    objective<span class="op">=</span><span class="st">"binary:logistic"</span>,</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    eval_metric<span class="op">=</span><span class="st">"logloss"</span>,</span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>    tree_method<span class="op">=</span><span class="st">"hist"</span>,</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>    enable_categorical<span class="op">=</span><span class="va">True</span>,  <span class="co"># native handling of the shot-type categorical</span></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">42</span>,</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a><span class="co"># Pooled out-of-fold predictions: each fold's model predicts the shots it never saw.</span></span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Grouped by game so every test fold is made of whole games the model never trained on</span></span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a><span class="co"># (avoids leaking game-specific signal across folds); stratified to keep each fold near</span></span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a><span class="co"># the overall goal rate.</span></span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>cv <span class="op">=</span> StratifiedGroupKFold(n_splits<span class="op">=</span><span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>oof_prob <span class="op">=</span> np.full(<span class="bu">len</span>(y), np.nan)</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> train_idx, test_idx <span class="kw">in</span> cv.split(X, y, groups):</span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> xgb.XGBClassifier(<span class="op">**</span>xgb_params)</span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>    model.fit(X.iloc[train_idx], y[train_idx])</span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>    oof_prob[test_idx] <span class="op">=</span> model.predict_proba(X.iloc[test_idx])[:, <span class="dv">1</span>]</span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> np.isnan(oof_prob).<span class="bu">any</span>()</span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a><span class="co"># No-skill baseline: predict the base rate for every shot.</span></span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>base_rate <span class="op">=</span> y.mean()</span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>baseline_prob <span class="op">=</span> np.full(<span class="bu">len</span>(y), base_rate)</span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a>metrics <span class="op">=</span> pl.DataFrame({</span>
+<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Metric"</span>: [</span>
+<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Binary cross-entropy"</span>,</span>
+<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Brier score"</span>,</span>
+<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ROC AUC"</span>,</span>
+<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Model"</span>: [</span>
+<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>        log_loss(y, oof_prob),</span>
+<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a>        brier_score_loss(y, oof_prob),</span>
+<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>        roc_auc_score(y, oof_prob),</span>
+<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Baseline"</span>: [</span>
+<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a>        log_loss(y, baseline_prob),</span>
+<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a>        brier_score_loss(y, baseline_prob),</span>
+<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>        <span class="fl">0.5</span>,</span>
+<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><img src="model_performance.png" class="img-fluid"></p>
+</section>
+<section id="tabpfn" class="level3">
+<h3 class="anchored" data-anchor-id="tabpfn">TabPFN</h3>
 </section>
 </section>
 <section id="conclusion" class="level2">

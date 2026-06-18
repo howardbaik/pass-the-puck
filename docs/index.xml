@@ -4148,7 +4148,7 @@ font-style: inherit;">300</span>)</span>
  ]]></description>
   <guid>https://your-website-url.example.com/posts/feature-based-xg/</guid>
   <pubDate>Wed, 17 Jun 2026 04:00:00 GMT</pubDate>
-  <media:content url="https://your-website-url.example.com/posts/feature-based-xg/thumbnail.png" medium="image" type="image/png" height="57" width="144"/>
+  <media:content url="https://your-website-url.example.com/posts/feature-based-xg/thumbnail.png" medium="image" type="image/png" height="90" width="144"/>
 </item>
 </channel>
 </rss>

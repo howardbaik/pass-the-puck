@@ -7,13 +7,6 @@
     "text": "Pass The Puck is a blog exploring player tracking data in hockey written by Howard Baik."
   },
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Pass The Puck",
-    "section": "",
-    "text": "Feature-Based Expected Goals (xG)\n\n\nThis post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault’s PhD thesis.\n\n\n\n\n\nJun 17, 2026\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
-  },
-  {
     "objectID": "posts/feature-based-xg/index.html",
     "href": "posts/feature-based-xg/index.html",
     "title": "Feature-Based Expected Goals (xG)",
@@ -46,6 +39,13 @@
     "href": "posts/feature-based-xg/index.html#conclusion",
     "title": "Feature-Based Expected Goals (xG)",
     "section": "Conclusion",
-    "text": "Conclusion\nIn this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault’s PhD thesis, “Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data”. We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis.\nWe find that our metrics fall short of the thesis’s due to the dataset size difference, but it still provides valuable insights into factors influencing goal likelihood. Shot distance and meridian distance emerge as the two most important features, and the closer and faster the shot, the more likely it is to become a goal.\nFuture work will be implementations later sections of Arsenault’s thesis, such as Section 2.5’s Graph-Based Approach, in which he trains neural networks to estimate goal likelihood."
+    "text": "Conclusion\nIn this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault’s PhD thesis, “Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data”. We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis.\nWe find that our metrics fall short of the thesis’s due to the dataset size difference, but it still provides valuable insights into factors influencing goal likelihood. Shot distance and meridian distance emerge as the two most important features, and the closer and faster the shot, the more likely it is to become a goal.\nFuture work will be implementations of later sections of Arsenault’s thesis, such as Section 2.5’s Graph-Based Approach, in which he trains neural networks to estimate goal likelihood."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Pass The Puck",
+    "section": "",
+    "text": "Feature-Based Expected Goals (xG)\n\n\nThis post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault’s PhD thesis.\n\n\n\n\n\nJun 17, 2026\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
   }
 ]

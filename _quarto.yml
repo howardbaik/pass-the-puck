@@ -20,5 +20,8 @@ format:
     css: styles.css
     link-external-newwindow: true
 
+execute:
+  jupyter: python3
+
 
 

@@ -1105,4 +1105,4 @@ We find that our metrics fall short of the thesis's due to the dataset size diff
 
 Future work will be implementations of later sections of Arsenault's thesis, such as Section 2.5's Graph-Based Approach, in which he trains neural networks to estimate goal likelihood.
 
-A Jupyter notebook of the code is available [here](https://github.com/howardbaik/player-tracking-data/blob/main/feature-based-expected-goals.ipynb).
+A Jupyter notebook of the code is available [here](https://github.com/howardbaik/player-tracking-data/blob/main/feature-based-xg/feature-based-expected-goals.ipynb).

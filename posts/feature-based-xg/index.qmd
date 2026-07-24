@@ -210,7 +210,7 @@ There are 58 goals in our 10-game dataset and most of the goals are from the hig
 
 ## Feature Engineering
 
-We extract features from the *events and *tracking* data for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.
+We extract features from the *events and tracking* data for the Features-Based xG Model in the thesis. Since the thesis certainly draws on different data than the 2026 Big Data Cup, we make a few assumptions along the way to match its features as closely as possible.
 
 ### Shot Location
 
@@ -904,7 +904,7 @@ The resulting dataset, with one row per shot and every feature attached, looks l
 
 Section 2.4.2 of the thesis lays out how to train an XGBoost model on the dataset. As the thesis emphasizes, the goal is not to classify each shot as a goal or non-goal, but to estimate its probability of becoming a goal. Since the output is a probability, the model is evaluated with three metrics: binary cross-entropy loss and the Brier score, which directly score probabilistic predictions, along with the area under the receiver operating characteristic curve (AUC).
 
-We adopt the hyperparameters from the thesis: a maximum tree depth of 4, 125 trees, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games. 
+We adopt the hyperparameters from the thesis: 125 trees, a maximum tree depth of 4, and a learning rate of 0.075. Because goals are rare, the target variable is heavily imbalanced, with only 4.9% of shots labeled as a goal, so we evaluate the model with stratified 5-fold group cross-validation, which preserves that goal rate within each fold. With 10 games in the dataset, each fold trains on the equivalent of 8 games and tests on the remaining 2 games. 
 
 ```{python}
 import xgboost as xgb

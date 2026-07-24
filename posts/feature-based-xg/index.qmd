@@ -14,12 +14,12 @@ eval: false
 author: "Howard Baik"
 date: "2026-06-18"
 image: "thumbnail.png"
-description: "This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault's PhD thesis."
+description: "This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of Jonathan Arsenault's PhD thesis, Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data."
 ---
 
 ## Introduction
 
-This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of [Jonathan Arsenault](https://www.linkedin.com/in/jonathan-arsenault-a0b414114/)'s [PhD thesis](https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f). As the thesis puts it, "xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal." Here, those features come from event and tracking data and capture shooter location, shooter motion, pressure from defenders, pre-shot puck movement, traffic in the shooting lane, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot's probability of becoming a goal.
+This post is an implementation of the Feature-Based Expected Goals (xG) Model from Section 2.4 of [Jonathan Arsenault](https://www.linkedin.com/in/jonathan-arsenault-a0b414114/)'s PhD thesis, [*Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data*](https://mcgill.scholaris.ca/items/da91938f-30c7-4f75-9ca3-2402a9e5422f). As the thesis puts it, "xG models use a supervised learning algorithm to establish a mapping between a set of features that describe a shot and the probability of the shot resulting in a goal." Here, those features come from event and tracking data and capture shooter location, shooter motion, pressure from defenders, pre-shot puck movement, traffic in the shooting lane, and goaltender positioning. We will create each of these features, then train an XGBoost model to predict each shot's probability of becoming a goal.
 
 We will use data from the [Big Data Cup 2026](https://github.com/bigdatacup/Big-Data-Cup-2026), which spans 10 games and combines Stathletes-tracked event data with player tracking data generated from broadcast video.
 
@@ -1099,7 +1099,7 @@ The goaltender depth panel adds an interesting pattern. When the goaltender is p
 
 ## Conclusion
 
-In this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault's PhD thesis, "Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data". We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis. 
+In this post, we implement the Feature-Based Expected Goals (xG) Model in Section 2.4 of Jonathan Arsenault's PhD thesis, *Quantitative Analysis of Hockey Using Spatiotemporal Tracking Data*. We use the events and tracking data from the 2026 Big Data Cup to compute features such as shot distance, shot speed, traffic, shot angle, meridian time, meridian distance, goaltender depth, and total occlusion. Then, we train an XGBoost model on the modeling dataset with the same hyperparameters as the thesis. 
 
 We find that our metrics fall short of the thesis's due to the dataset size difference, but it still provides valuable insights into factors influencing goal likelihood. Shot distance and meridian distance emerge as the two most important features, and the closer and faster the shot, the more likely it is to become a goal.
 
